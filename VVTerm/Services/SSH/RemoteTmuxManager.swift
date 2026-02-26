@@ -22,8 +22,7 @@ actor RemoteTmuxManager {
 
     func isTmuxAvailable(using client: SSHClient) async -> Bool {
         let okMarker = "__VVTERM_TMUX_OK__"
-        let body = "\(shellPathExport()); if command -v tmux >/dev/null 2>&1; then printf '\(okMarker)'; else printf '__VVTERM_TMUX_NO__'; fi"
-        let command = "sh -lc \(shellQuoted(body))"
+        let command = tmuxAvailabilityProbeCommand(okMarker: okMarker)
         let output = try? await client.execute(command, timeout: availabilityTimeout)
         return output?.contains(okMarker) == true
     }
@@ -220,6 +219,30 @@ actor RemoteTmuxManager {
             "/sbin"
         ]
         return paths.joined(separator: ":") + ":$PATH"
+    }
+
+    nonisolated func tmuxAvailabilityProbeCommand(okMarker: String) -> String {
+        let body = """
+        \(shellPathExport());
+        VVTERM_TMUX_BIN="";
+        if command -v tmux >/dev/null 2>&1; then
+          VVTERM_TMUX_BIN="$(command -v tmux 2>/dev/null)";
+        fi;
+        if [ -z "$VVTERM_TMUX_BIN" ]; then
+          for candidate in /usr/bin/tmux /bin/tmux /usr/local/bin/tmux /opt/local/bin/tmux /snap/bin/tmux; do
+            if [ -x "$candidate" ]; then
+              VVTERM_TMUX_BIN="$candidate";
+              break;
+            fi;
+          done;
+        fi;
+        if [ -n "$VVTERM_TMUX_BIN" ] && "$VVTERM_TMUX_BIN" -V >/dev/null 2>&1; then
+          printf '\(okMarker)';
+        else
+          printf '__VVTERM_TMUX_NO__';
+        fi
+        """
+        return "sh -c \(shellQuoted(body))"
     }
 
     nonisolated func parseSessionListOutput(_ output: String, allowLegacy: Bool) -> [RemoteTmuxSession] {

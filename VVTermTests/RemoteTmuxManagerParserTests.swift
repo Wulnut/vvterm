@@ -87,4 +87,17 @@ struct RemoteTmuxManagerParserTests {
         #expect(script.contains("vvterm_demo"))
         #expect(script.contains("/tmp/work dir"))
     }
+
+    @Test
+    func availabilityProbeUsesFallbackPathsAndNonLoginShell() {
+        let probe = RemoteTmuxManager.shared.tmuxAvailabilityProbeCommand(okMarker: "__VVTERM_TMUX_OK__")
+        #expect(probe.hasPrefix("sh -c "))
+        #expect(!probe.contains("sh -lc "))
+        #expect(probe.contains("command -v tmux"))
+        #expect(probe.contains("/usr/bin/tmux"))
+        #expect(probe.contains("/bin/tmux"))
+        #expect(probe.contains("/usr/local/bin/tmux"))
+        #expect(probe.contains("-V >/dev/null 2>&1"))
+        #expect(probe.contains("__VVTERM_TMUX_OK__"))
+    }
 }
