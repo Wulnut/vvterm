@@ -2020,6 +2020,7 @@ private class TerminalInputAccessoryView: UIInputView {
             queue: .main
         ) { [weak self] _ in
             self?.updateBackgroundEffect()
+            self?.updateVoiceButtonState()
         }
     }
 
@@ -2450,7 +2451,8 @@ private class TerminalInputAccessoryView: UIInputView {
     }
 
     private func updateVoiceButtonState() {
-        let visible = onVoice != nil
+        let preferenceEnabled = UserDefaults.standard.object(forKey: "terminalVoiceButtonEnabled") as? Bool ?? true
+        let visible = onVoice != nil && preferenceEnabled
         voiceButton?.isHidden = !visible
         voiceSeparatorView?.isHidden = !visible
         voiceButton?.isEnabled = visible
