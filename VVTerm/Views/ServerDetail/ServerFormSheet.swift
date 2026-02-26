@@ -151,7 +151,7 @@ struct ServerFormSheet: View {
     @State private var error: String?
     @State private var storedKeys: [SSHKeyEntry] = []
     @State private var selectedStoredKey: SSHKeyEntry?
-    @State private var isApplyingStoredKey = false
+    @State private var programmaticSSHKeyValue: String?
     @State private var isTestingConnection = false
     @State private var connectionTestError: String?
     @State private var connectionTestSucceeded = false
@@ -303,6 +303,8 @@ struct ServerFormSheet: View {
         #endif
         .interactiveDismissDisabled(isSaving)
         .task {
+            storedKeys = KeychainManager.shared.getStoredSSHKeys()
+
             // Load credentials from keychain when editing
             guard let server = server else { return }
             isLoadingCredentials = true
@@ -341,6 +343,7 @@ struct ServerFormSheet: View {
 
                 cloudflareClientID = credentials.cloudflareClientID ?? ""
                 cloudflareClientSecret = credentials.cloudflareClientSecret ?? ""
+                selectMatchingStoredKeyIfAvailable()
             } catch {
                 self.error = String(format: String(localized: "Failed to load credentials: %@"), error.localizedDescription)
             }
@@ -383,6 +386,7 @@ struct ServerFormSheet: View {
             .limitReachedAlert(.servers, isPresented: $showingServerLimitAlert)
             .onAppear {
                 storedKeys = KeychainManager.shared.getStoredSSHKeys()
+                selectMatchingStoredKeyIfAvailable()
             }
             .onChange(of: host) { _ in resetConnectionTestState() }
             .onChange(of: port) { _ in resetConnectionTestState() }
@@ -391,7 +395,10 @@ struct ServerFormSheet: View {
             .onChange(of: selectedAuthMethod) { _ in resetConnectionTestState() }
             .onChange(of: password) { _ in resetConnectionTestState() }
             .onChange(of: sshKey) { _ in
-                if !isLoadingCredentials && !isApplyingStoredKey {
+                if let programmaticSSHKeyValue,
+                   sshKey == programmaticSSHKeyValue {
+                    self.programmaticSSHKeyValue = nil
+                } else if !isLoadingCredentials {
                     selectedStoredKey = nil
                     sshPublicKey = ""
                 }
@@ -764,10 +771,11 @@ struct ServerFormSheet: View {
 
     private func loadStoredKey(_ entry: SSHKeyEntry) {
         do {
-            isApplyingStoredKey = true
-            defer { isApplyingStoredKey = false }
             if let keyData = try KeychainManager.shared.getStoredSSHKeyData(for: entry.id) {
                 if let keyString = String(data: keyData.key, encoding: .utf8) {
+                    if sshKey != keyString {
+                        programmaticSSHKeyValue = keyString
+                    }
                     sshKey = keyString
                 }
                 if let passphrase = keyData.passphrase {
@@ -777,6 +785,32 @@ struct ServerFormSheet: View {
             sshPublicKey = entry.publicKey ?? ""
         } catch {
             self.error = String(format: String(localized: "Failed to load key: %@"), error.localizedDescription)
+        }
+    }
+
+    private func selectMatchingStoredKeyIfAvailable() {
+        guard selectedStoredKey == nil,
+              !sshKey.isEmpty,
+              !storedKeys.isEmpty,
+              selectedAuthMethod != .password else {
+            return
+        }
+
+        for key in storedKeys {
+            guard let keyData = try? KeychainManager.shared.getStoredSSHKeyData(for: key.id),
+                  let keyString = String(data: keyData.key, encoding: .utf8),
+                  keyString == sshKey else {
+                continue
+            }
+
+            if let storedPassphrase = keyData.passphrase,
+               !storedPassphrase.isEmpty,
+               storedPassphrase != sshPassphrase {
+                continue
+            }
+
+            selectedStoredKey = key
+            return
         }
     }
 
