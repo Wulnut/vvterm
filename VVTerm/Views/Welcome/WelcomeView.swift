@@ -33,57 +33,62 @@ private struct iOSWelcomeContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer()
-                .frame(height: 40)
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer()
+                        .frame(height: 28)
 
-            // App Icon (load 1024px version for best quality)
-            if let iconImage = UIImage(named: "icon-ios-1024") {
-                Image(uiImage: iconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-            }
-
-            // Header
-            Text("Welcome to VVTerm")
-                .font(.title)
-                .fontWeight(.bold)
-                .padding(.top, 20)
-                .padding(.bottom, 32)
-
-            // Features
-            VStack(alignment: .leading, spacing: 28) {
-                ForEach(features, id: \.title) { feature in
-                    HStack(alignment: .top, spacing: 16) {
-                        Image(systemName: feature.icon)
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 50, height: 50)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(feature.color)
-                            )
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(feature.title)
-                                .font(.headline)
-
-                            Text(feature.description)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: 0)
+                    // App Icon (load 1024px version for best quality)
+                    if let iconImage = UIImage(named: "icon-ios-1024") {
+                        Image(uiImage: iconImage)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 120, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                     }
-                }
-            }
-            .padding(.horizontal, 32)
 
-            Spacer()
+                    // Header
+                    Text("Welcome to VVTerm")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .padding(.top, 20)
+                        .padding(.bottom, 32)
+                        .multilineTextAlignment(.center)
+
+                    // Features
+                    VStack(alignment: .leading, spacing: 24) {
+                        ForEach(features, id: \.title) { feature in
+                            HStack(alignment: .top, spacing: 16) {
+                                Image(systemName: feature.icon)
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 50, height: 50)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(feature.color)
+                                    )
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(feature.title)
+                                        .font(.headline)
+
+                                    Text(feature.description)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                }
+                .frame(maxWidth: .infinity)
+            }
 
             // Continue button
             Button {
@@ -101,6 +106,7 @@ private struct iOSWelcomeContent: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
+            .padding(.top, 8)
         }
     }
 }

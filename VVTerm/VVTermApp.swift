@@ -79,7 +79,6 @@ struct VVTermApp: App {
                             set: { if !$0 { hasSeenWelcome = true } }
                         )) {
                             WelcomeView(hasSeenWelcome: $hasSeenWelcome)
-                                .interactiveDismissDisabled()
                         }
                     #else
                     ContentView()
@@ -95,7 +94,6 @@ struct VVTermApp: App {
                             set: { if !$0 { hasSeenWelcome = true } }
                         )) {
                             WelcomeView(hasSeenWelcome: $hasSeenWelcome)
-                                .interactiveDismissDisabled()
                         }
                     #endif
                 }
