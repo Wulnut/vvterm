@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct ContentView: View {
     @StateObject private var serverManager = ServerManager.shared
@@ -176,9 +179,14 @@ struct ContentView: View {
     var body: some View {
         #if os(macOS)
         splitViewContent
-            .toolbar(effectiveZenModeEnabled ? .hidden : .visible, for: .windowToolbar)
             .focusedValue(\.toggleZenMode, zenToggleAction)
             .focusedValue(\.isZenModeEnabled, canUseZenMode ? effectiveZenModeEnabled : nil)
+            .background(
+                MainWindowChromeBridge(
+                    windowTitle: effectiveZenModeEnabled ? (selectedServer?.name ?? "") : ""
+                )
+                    .frame(width: 0, height: 0)
+            )
             .frame(minWidth: 800, minHeight: 500)
         #endif
         #if !os(macOS)
@@ -192,3 +200,57 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
+
+#if os(macOS)
+private struct MainWindowChromeBridge: NSViewRepresentable {
+    let windowTitle: String
+
+    func makeNSView(context: Context) -> NSView {
+        WindowObserverView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let view = nsView as? WindowObserverView else { return }
+        view.windowTitle = windowTitle
+        view.applyIfPossible()
+    }
+
+    private func configure(_ window: NSWindow, title: String) {
+        if window.title != title {
+            window.title = title
+        }
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        // Keep the content area interactive. Enabling background dragging here
+        // causes terminal clicks and drag-to-select gestures to start moving the window.
+        window.isMovableByWindowBackground = false
+        window.styleMask.insert(.fullSizeContentView)
+        window.toolbarStyle = .unified
+        window.toolbar?.showsBaselineSeparator = false
+    }
+
+    final class WindowObserverView: NSView {
+        var windowTitle = "VVTerm"
+
+        override var intrinsicContentSize: NSSize { .zero }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyIfPossible()
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            applyIfPossible()
+        }
+
+        func applyIfPossible() {
+            DispatchQueue.main.async { [weak self] in
+                guard let window = self?.window else { return }
+                MainWindowChromeBridge(windowTitle: self?.windowTitle ?? "VVTerm")
+                    .configure(window, title: self?.windowTitle ?? "VVTerm")
+            }
+        }
+    }
+}
+#endif
