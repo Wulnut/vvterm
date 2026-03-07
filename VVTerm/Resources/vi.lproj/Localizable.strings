@@ -969,3 +969,32 @@
 "production" = "sản xuất";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "lựa chọn";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Phím cách";
+"Shortcut" = "Phím tắt";
+"Type" = "Loại";
+"Custom Action" = "Hành động tùy chỉnh";
+"Custom Actions" = "Hành động tùy chỉnh";
+"Manage Custom Actions" = "Quản lý hành động tùy chỉnh";
+"Available Custom Actions" = "Hành động tùy chỉnh có sẵn";
+"Create Action" = "Tạo hành động";
+"No custom actions yet." = "Chưa có hành động tùy chỉnh nào.";
+"All custom actions are already added." = "Tất cả hành động tùy chỉnh đã được thêm.";
+"You can create up to %lld custom actions." = "Bạn có thể tạo tối đa %lld hành động tùy chỉnh.";
+"Action title cannot be empty." = "Tiêu đề hành động không được để trống.";
+"Command content cannot be empty." = "Nội dung lệnh không được để trống.";
+"Action not found." = "Không tìm thấy hành động.";
+"Commands send exactly as written." = "Lệnh được gửi đúng như đã viết.";
+"Avoid storing secrets in commands or action titles." = "Tránh lưu trữ bí mật trong lệnh hoặc tiêu đề hành động.";
+"Delete Custom Action" = "Xóa hành động tùy chỉnh";
+"Delete Custom Action?" = "Xóa hành động tùy chỉnh?";
+"Edit Custom Action" = "Chỉnh sửa hành động tùy chỉnh";
+"New Custom Action" = "Hành động tùy chỉnh mới";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld hành động tùy chỉnh. Chạm vào một hàng để chỉnh sửa.";
+"Title length: %lld/%lld" = "Độ dài tiêu đề: %lld/%lld";
+"Command length: %lld/%lld" = "Độ dài lệnh: %lld/%lld";
+"Show keyboard dismiss button" = "Hiển thị nút ẩn bàn phím";
+"Hide keyboard" = "Ẩn bàn phím";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Sắp xếp lại hành động, thêm hành động tùy chỉnh, hiển thị hoặc ẩn nút ẩn bàn phím và đồng bộ thanh phụ kiện giữa các thiết bị.";

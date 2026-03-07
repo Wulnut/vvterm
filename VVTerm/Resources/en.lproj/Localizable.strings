@@ -941,3 +941,32 @@
 "production" = "production";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "selection";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Space";
+"Shortcut" = "Shortcut";
+"Type" = "Type";
+"Custom Action" = "Custom Action";
+"Custom Actions" = "Custom Actions";
+"Manage Custom Actions" = "Manage Custom Actions";
+"Available Custom Actions" = "Available Custom Actions";
+"Create Action" = "Create Action";
+"No custom actions yet." = "No custom actions yet.";
+"All custom actions are already added." = "All custom actions are already added.";
+"You can create up to %lld custom actions." = "You can create up to %lld custom actions.";
+"Action title cannot be empty." = "Action title cannot be empty.";
+"Command content cannot be empty." = "Command content cannot be empty.";
+"Action not found." = "Action not found.";
+"Commands send exactly as written." = "Commands send exactly as written.";
+"Avoid storing secrets in commands or action titles." = "Avoid storing secrets in commands or action titles.";
+"Delete Custom Action" = "Delete Custom Action";
+"Delete Custom Action?" = "Delete Custom Action?";
+"Edit Custom Action" = "Edit Custom Action";
+"New Custom Action" = "New Custom Action";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld custom actions. Tap a row to edit.";
+"Title length: %lld/%lld" = "Title length: %lld/%lld";
+"Command length: %lld/%lld" = "Command length: %lld/%lld";
+"Show keyboard dismiss button" = "Show keyboard dismiss button";
+"Hide keyboard" = "Hide keyboard";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices.";

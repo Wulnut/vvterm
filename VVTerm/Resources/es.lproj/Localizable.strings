@@ -924,3 +924,32 @@
 "production" = "producción";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "selección";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Espacio";
+"Shortcut" = "Atajo";
+"Type" = "Tipo";
+"Custom Action" = "Acción personalizada";
+"Custom Actions" = "Acciones personalizadas";
+"Manage Custom Actions" = "Administrar acciones personalizadas";
+"Available Custom Actions" = "Acciones personalizadas disponibles";
+"Create Action" = "Crear acción";
+"No custom actions yet." = "Aún no hay acciones personalizadas.";
+"All custom actions are already added." = "Todas las acciones personalizadas ya están agregadas.";
+"You can create up to %lld custom actions." = "Puede crear hasta %lld acciones personalizadas.";
+"Action title cannot be empty." = "El título de la acción no puede estar vacío.";
+"Command content cannot be empty." = "El contenido del comando no puede estar vacío.";
+"Action not found." = "Acción no encontrada.";
+"Commands send exactly as written." = "Los comandos se envían exactamente como están escritos.";
+"Avoid storing secrets in commands or action titles." = "Evite almacenar secretos en comandos o títulos de acciones.";
+"Delete Custom Action" = "Eliminar acción personalizada";
+"Delete Custom Action?" = "¿Eliminar acción personalizada?";
+"Edit Custom Action" = "Editar acción personalizada";
+"New Custom Action" = "Nueva acción personalizada";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld acciones personalizadas. Toque una fila para editar.";
+"Title length: %lld/%lld" = "Longitud del título: %lld/%lld";
+"Command length: %lld/%lld" = "Longitud del comando: %lld/%lld";
+"Show keyboard dismiss button" = "Mostrar botón para ocultar el teclado";
+"Hide keyboard" = "Ocultar teclado";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Reordene acciones, agregue acciones personalizadas, muestre u oculte el botón para ocultar el teclado y sincronice la barra accesoria en todos sus dispositivos.";

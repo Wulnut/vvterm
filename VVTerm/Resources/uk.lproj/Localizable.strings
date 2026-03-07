@@ -931,3 +931,32 @@
 "production" = "виробництва";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "вибір";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Пробіл";
+"Shortcut" = "Сполучення клавіш";
+"Type" = "Тип";
+"Custom Action" = "Користувацька дія";
+"Custom Actions" = "Користувацькі дії";
+"Manage Custom Actions" = "Керування користувацькими діями";
+"Available Custom Actions" = "Доступні користувацькі дії";
+"Create Action" = "Створити дію";
+"No custom actions yet." = "Користувацьких дій ще немає.";
+"All custom actions are already added." = "Усі користувацькі дії вже додано.";
+"You can create up to %lld custom actions." = "Ви можете створити до %lld користувацьких дій.";
+"Action title cannot be empty." = "Назва дії не може бути порожньою.";
+"Command content cannot be empty." = "Вміст команди не може бути порожнім.";
+"Action not found." = "Дію не знайдено.";
+"Commands send exactly as written." = "Команди надсилаються точно так, як написано.";
+"Avoid storing secrets in commands or action titles." = "Уникайте зберігання секретів у командах або назвах дій.";
+"Delete Custom Action" = "Видалити користувацьку дію";
+"Delete Custom Action?" = "Видалити користувацьку дію?";
+"Edit Custom Action" = "Редагувати користувацьку дію";
+"New Custom Action" = "Нова користувацька дія";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld користувацьких дій. Натисніть рядок, щоб редагувати.";
+"Title length: %lld/%lld" = "Довжина назви: %lld/%lld";
+"Command length: %lld/%lld" = "Довжина команди: %lld/%lld";
+"Show keyboard dismiss button" = "Показувати кнопку приховування клавіатури";
+"Hide keyboard" = "Сховати клавіатуру";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Змінюйте порядок дій, додавайте користувацькі дії, показуйте або приховуйте кнопку приховування клавіатури та синхронізуйте панель аксесуарів між пристроями.";

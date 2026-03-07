@@ -926,3 +926,32 @@
 "production" = "production";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "sélection";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Espace";
+"Shortcut" = "Raccourci";
+"Type" = "Type";
+"Custom Action" = "Action personnalisée";
+"Custom Actions" = "Actions personnalisées";
+"Manage Custom Actions" = "Gérer les actions personnalisées";
+"Available Custom Actions" = "Actions personnalisées disponibles";
+"Create Action" = "Créer une action";
+"No custom actions yet." = "Aucune action personnalisée pour l'instant.";
+"All custom actions are already added." = "Toutes les actions personnalisées sont déjà ajoutées.";
+"You can create up to %lld custom actions." = "Vous pouvez créer jusqu'à %lld actions personnalisées.";
+"Action title cannot be empty." = "Le titre de l'action ne peut pas être vide.";
+"Command content cannot be empty." = "Le contenu de la commande ne peut pas être vide.";
+"Action not found." = "Action introuvable.";
+"Commands send exactly as written." = "Les commandes sont envoyées exactement telles qu'elles sont écrites.";
+"Avoid storing secrets in commands or action titles." = "Évitez de stocker des secrets dans les commandes ou les titres d'action.";
+"Delete Custom Action" = "Supprimer l'action personnalisée";
+"Delete Custom Action?" = "Supprimer l'action personnalisée ?";
+"Edit Custom Action" = "Modifier l'action personnalisée";
+"New Custom Action" = "Nouvelle action personnalisée";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld actions personnalisées. Touchez une ligne pour la modifier.";
+"Title length: %lld/%lld" = "Longueur du titre : %lld/%lld";
+"Command length: %lld/%lld" = "Longueur de la commande : %lld/%lld";
+"Show keyboard dismiss button" = "Afficher le bouton de masquage du clavier";
+"Hide keyboard" = "Masquer le clavier";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Réorganisez les actions, ajoutez des actions personnalisées, affichez ou masquez le bouton de masquage du clavier et synchronisez votre barre d'accessoires sur tous vos appareils.";

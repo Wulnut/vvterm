@@ -66,7 +66,11 @@ struct TerminalCustomActionLibraryView: View {
                 Text("Custom Actions")
             } footer: {
                 Text(
-                    "\(preferences.customActions.count)/\(TerminalAccessoryProfile.maxCustomActions) custom actions. Tap a row to edit."
+                    String(
+                        format: String(localized: "%lld/%lld custom actions. Tap a row to edit."),
+                        Int64(preferences.customActions.count),
+                        Int64(TerminalAccessoryProfile.maxCustomActions)
+                    )
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)

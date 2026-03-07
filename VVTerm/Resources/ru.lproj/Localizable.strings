@@ -924,3 +924,32 @@
 "production" = "производство";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "выбор";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Пробел";
+"Shortcut" = "Сочетание клавиш";
+"Type" = "Тип";
+"Custom Action" = "Пользовательское действие";
+"Custom Actions" = "Пользовательские действия";
+"Manage Custom Actions" = "Управление пользовательскими действиями";
+"Available Custom Actions" = "Доступные пользовательские действия";
+"Create Action" = "Создать действие";
+"No custom actions yet." = "Пользовательских действий пока нет.";
+"All custom actions are already added." = "Все пользовательские действия уже добавлены.";
+"You can create up to %lld custom actions." = "Вы можете создать до %lld пользовательских действий.";
+"Action title cannot be empty." = "Название действия не может быть пустым.";
+"Command content cannot be empty." = "Содержимое команды не может быть пустым.";
+"Action not found." = "Действие не найдено.";
+"Commands send exactly as written." = "Команды отправляются точно так, как написаны.";
+"Avoid storing secrets in commands or action titles." = "Не храните секреты в командах или названиях действий.";
+"Delete Custom Action" = "Удалить пользовательское действие";
+"Delete Custom Action?" = "Удалить пользовательское действие?";
+"Edit Custom Action" = "Редактировать пользовательское действие";
+"New Custom Action" = "Новое пользовательское действие";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld пользовательских действий. Нажмите на строку, чтобы отредактировать.";
+"Title length: %lld/%lld" = "Длина названия: %lld/%lld";
+"Command length: %lld/%lld" = "Длина команды: %lld/%lld";
+"Show keyboard dismiss button" = "Показывать кнопку скрытия клавиатуры";
+"Hide keyboard" = "Скрыть клавиатуру";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Меняйте порядок действий, добавляйте пользовательские действия, показывайте или скрывайте кнопку скрытия клавиатуры и синхронизируйте панель аксессуаров между устройствами.";

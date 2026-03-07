@@ -925,3 +925,32 @@
 "production" = "вытворчасці";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "выбар";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Прабел";
+"Shortcut" = "Спалучэнне клавіш";
+"Type" = "Тып";
+"Custom Action" = "Карыстальніцкае дзеянне";
+"Custom Actions" = "Карыстальніцкія дзеянні";
+"Manage Custom Actions" = "Кіраванне карыстальніцкімі дзеяннямі";
+"Available Custom Actions" = "Даступныя карыстальніцкія дзеянні";
+"Create Action" = "Стварыць дзеянне";
+"No custom actions yet." = "Карыстальніцкіх дзеянняў пакуль няма.";
+"All custom actions are already added." = "Усе карыстальніцкія дзеянні ўжо дададзены.";
+"You can create up to %lld custom actions." = "Вы можаце стварыць да %lld карыстальніцкіх дзеянняў.";
+"Action title cannot be empty." = "Назва дзеяння не можа быць пустой.";
+"Command content cannot be empty." = "Змест каманды не можа быць пустым.";
+"Action not found." = "Дзеянне не знойдзена.";
+"Commands send exactly as written." = "Каманды адпраўляюцца дакладна так, як напісаны.";
+"Avoid storing secrets in commands or action titles." = "Пазбягайце захоўвання сакрэтаў у камандах або назвах дзеянняў.";
+"Delete Custom Action" = "Выдаліць карыстальніцкае дзеянне";
+"Delete Custom Action?" = "Выдаліць карыстальніцкае дзеянне?";
+"Edit Custom Action" = "Рэдагаваць карыстальніцкае дзеянне";
+"New Custom Action" = "Новае карыстальніцкае дзеянне";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld карыстальніцкіх дзеянняў. Націсніце радок, каб рэдагаваць.";
+"Title length: %lld/%lld" = "Даўжыня назвы: %lld/%lld";
+"Command length: %lld/%lld" = "Даўжыня каманды: %lld/%lld";
+"Show keyboard dismiss button" = "Паказваць кнопку схавання клавіятуры";
+"Hide keyboard" = "Схаваць клавіятуру";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Змяняйце парадак дзеянняў, дадавайце карыстальніцкія дзеянні, паказвайце або хавайце кнопку схавання клавіятуры і сінхранізуйце панэль аксесуараў паміж прыладамі.";

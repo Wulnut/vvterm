@@ -925,3 +925,32 @@
 "production" = "výroba";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "výběr";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Mezerník";
+"Shortcut" = "Zkratka";
+"Type" = "Typ";
+"Custom Action" = "Vlastní akce";
+"Custom Actions" = "Vlastní akce";
+"Manage Custom Actions" = "Správa vlastních akcí";
+"Available Custom Actions" = "Dostupné vlastní akce";
+"Create Action" = "Vytvořit akci";
+"No custom actions yet." = "Zatím žádné vlastní akce.";
+"All custom actions are already added." = "Všechny vlastní akce jsou již přidány.";
+"You can create up to %lld custom actions." = "Můžete vytvořit až %lld vlastních akcí.";
+"Action title cannot be empty." = "Název akce nesmí být prázdný.";
+"Command content cannot be empty." = "Obsah příkazu nesmí být prázdný.";
+"Action not found." = "Akce nebyla nalezena.";
+"Commands send exactly as written." = "Příkazy se odešlou přesně tak, jak jsou napsány.";
+"Avoid storing secrets in commands or action titles." = "Neukládejte tajné údaje do příkazů ani názvů akcí.";
+"Delete Custom Action" = "Smazat vlastní akci";
+"Delete Custom Action?" = "Smazat vlastní akci?";
+"Edit Custom Action" = "Upravit vlastní akci";
+"New Custom Action" = "Nová vlastní akce";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld vlastních akcí. Klepnutím na řádek upravíte.";
+"Title length: %lld/%lld" = "Délka názvu: %lld/%lld";
+"Command length: %lld/%lld" = "Délka příkazu: %lld/%lld";
+"Show keyboard dismiss button" = "Zobrazit tlačítko pro skrytí klávesnice";
+"Hide keyboard" = "Skrýt klávesnici";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Měňte pořadí akcí, přidávejte vlastní akce, zobrazujte nebo skrývejte tlačítko pro skrytí klávesnice a synchronizujte panel příslušenství mezi zařízeními.";

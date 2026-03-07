@@ -1689,7 +1689,9 @@ extension GhosttyTerminalView {
                 self?.handleToolbarKey(key)
             }, onCustomAction: { [weak self] action in
                 self?.handleToolbarCustomAction(action)
-            }, onVoice: onVoiceButtonTapped)
+            }, onVoice: onVoiceButtonTapped, onDismissKeyboard: { [weak self] in
+                _ = self?.resignFirstResponder()
+            })
             keyboardToolbar = toolbar
         } else {
             keyboardToolbar?.onVoice = onVoiceButtonTapped
@@ -1843,9 +1845,10 @@ private extension TerminalAccessoryShortcutModifiers {
 private class TerminalInputAccessoryView: UIInputView {
     private let onKey: (TerminalKey) -> Void
     private let onCustomAction: (TerminalAccessoryCustomAction) -> Void
+    private let onDismissKeyboard: () -> Void
     var onVoice: (() -> Void)? {
         didSet {
-            updateVoiceButtonState()
+            updateLeadingButtonsState()
         }
     }
     private var ctrlActive = false
@@ -1855,10 +1858,12 @@ private class TerminalInputAccessoryView: UIInputView {
     private weak var altButton: UIButton?
     private weak var shiftButton: UIButton?
     private weak var voiceButton: UIButton?
-    private weak var voiceSeparatorView: UIView?
+    private weak var dismissKeyboardButton: UIButton?
+    private weak var leadingButtonsStack: UIStackView?
+    private weak var leadingButtonsSeparatorView: UIView?
     private weak var backgroundEffectView: UIVisualEffectView?
     private weak var dynamicItemsStack: UIStackView?
-    private var scrollLeadingToVoiceConstraint: NSLayoutConstraint?
+    private var scrollLeadingToLeadingButtonsConstraint: NSLayoutConstraint?
     private var scrollLeadingToEdgeConstraint: NSLayoutConstraint?
     private var defaultsObserver: NSObjectProtocol?
     private var accessoryProfileObserver: NSObjectProtocol?
@@ -1868,11 +1873,13 @@ private class TerminalInputAccessoryView: UIInputView {
     init(
         onKey: @escaping (TerminalKey) -> Void,
         onCustomAction: @escaping (TerminalAccessoryCustomAction) -> Void,
-        onVoice: (() -> Void)? = nil
+        onVoice: (() -> Void)? = nil,
+        onDismissKeyboard: @escaping () -> Void
     ) {
         self.onKey = onKey
         self.onCustomAction = onCustomAction
         self.onVoice = onVoice
+        self.onDismissKeyboard = onDismissKeyboard
         super.init(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 48), inputViewStyle: .keyboard)
         setupView()
         observeThemeChanges()
@@ -1915,33 +1922,48 @@ private class TerminalInputAccessoryView: UIInputView {
         scrollView.alwaysBounceHorizontal = true
         addSubview(scrollView)
 
+        let leadingStack = UIStackView()
+        leadingStack.translatesAutoresizingMaskIntoConstraints = false
+        leadingStack.axis = .horizontal
+        leadingStack.spacing = 8
+        leadingStack.alignment = .center
+        leadingStack.distribution = .fill
+        addSubview(leadingStack)
+        leadingButtonsStack = leadingStack
+
         let voice = makeIconButton(icon: "mic.fill") { [weak self] in
             self?.onVoice?()
         }
         voice.accessibilityLabel = String(localized: "Voice input")
         voiceButton = voice
-        voice.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(voice)
+        leadingStack.addArrangedSubview(voice)
 
-        let voiceSeparator = makeSeparator()
-        voiceSeparatorView = voiceSeparator
-        addSubview(voiceSeparator)
+        let dismissKeyboard = makeIconButton(icon: "keyboard.chevron.compact.down") { [weak self] in
+            self?.onDismissKeyboard()
+        }
+        dismissKeyboard.accessibilityLabel = String(localized: "Hide keyboard")
+        dismissKeyboardButton = dismissKeyboard
+        leadingStack.addArrangedSubview(dismissKeyboard)
 
-        let leadingToVoice = scrollView.leadingAnchor.constraint(equalTo: voiceSeparator.trailingAnchor, constant: 10)
+        let leadingButtonsSeparator = makeSeparator()
+        leadingButtonsSeparatorView = leadingButtonsSeparator
+        addSubview(leadingButtonsSeparator)
+
+        let leadingToButtons = scrollView.leadingAnchor.constraint(equalTo: leadingButtonsSeparator.trailingAnchor, constant: 10)
         let leadingToEdge = scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
-        scrollLeadingToVoiceConstraint = leadingToVoice
+        scrollLeadingToLeadingButtonsConstraint = leadingToButtons
         scrollLeadingToEdgeConstraint = leadingToEdge
 
         NSLayoutConstraint.activate([
-            voice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            voice.centerYAnchor.constraint(equalTo: centerYAnchor),
+            leadingStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            leadingStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            voiceSeparator.leadingAnchor.constraint(equalTo: voice.trailingAnchor, constant: 10),
-            voiceSeparator.centerYAnchor.constraint(equalTo: centerYAnchor),
+            leadingButtonsSeparator.leadingAnchor.constraint(equalTo: leadingStack.trailingAnchor, constant: 10),
+            leadingButtonsSeparator.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            leadingToVoice,
+            leadingToButtons,
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor)
         ])
 
@@ -1994,7 +2016,7 @@ private class TerminalInputAccessoryView: UIInputView {
         dynamicItemsStack = dynamicStack
 
         rebuildAccessoryItems()
-        updateVoiceButtonState()
+        updateLeadingButtonsState()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -2055,7 +2077,7 @@ private class TerminalInputAccessoryView: UIInputView {
             queue: .main
         ) { [weak self] _ in
             self?.updateBackgroundEffect()
-            self?.updateVoiceButtonState()
+            self?.updateLeadingButtonsState()
         }
     }
 
@@ -2485,15 +2507,24 @@ private class TerminalInputAccessoryView: UIInputView {
         }
     }
 
-    private func updateVoiceButtonState() {
-        let preferenceEnabled = UserDefaults.standard.object(forKey: "terminalVoiceButtonEnabled") as? Bool ?? true
-        let visible = onVoice != nil && preferenceEnabled
-        voiceButton?.isHidden = !visible
-        voiceSeparatorView?.isHidden = !visible
-        voiceButton?.isEnabled = visible
+    private func updateLeadingButtonsState() {
+        let defaults = UserDefaults.standard
+        let voiceEnabled = (defaults.object(forKey: "terminalVoiceButtonEnabled") as? Bool ?? true) && onVoice != nil
+        let dismissEnabled = defaults.object(forKey: "terminalKeyboardDismissButtonEnabled") as? Bool ?? true
+        let hasVisibleLeadingButton = voiceEnabled || dismissEnabled
+
+        voiceButton?.isHidden = !voiceEnabled
+        voiceButton?.isEnabled = voiceEnabled
         voiceButton?.alpha = 1.0
-        scrollLeadingToVoiceConstraint?.isActive = visible
-        scrollLeadingToEdgeConstraint?.isActive = !visible
+
+        dismissKeyboardButton?.isHidden = !dismissEnabled
+        dismissKeyboardButton?.isEnabled = dismissEnabled
+        dismissKeyboardButton?.alpha = 1.0
+
+        leadingButtonsStack?.isHidden = !hasVisibleLeadingButton
+        leadingButtonsSeparatorView?.isHidden = !hasVisibleLeadingButton
+        scrollLeadingToLeadingButtonsConstraint?.isActive = hasVisibleLeadingButton
+        scrollLeadingToEdgeConstraint?.isActive = !hasVisibleLeadingButton
         setNeedsLayout()
     }
 }

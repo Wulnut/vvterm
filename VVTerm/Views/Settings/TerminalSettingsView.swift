@@ -43,6 +43,7 @@ struct TerminalSettingsView: View {
     @AppStorage("terminalNotificationsEnabled") private var terminalNotificationsEnabled = true
     @AppStorage("terminalProgressEnabled") private var terminalProgressEnabled = true
     @AppStorage("terminalAccessoryCustomizationEnabled") private var terminalAccessoryCustomizationEnabled = true
+    @AppStorage("terminalKeyboardDismissButtonEnabled") private var terminalKeyboardDismissButtonEnabled = true
     @AppStorage("terminalTmuxEnabledDefault") private var tmuxEnabledDefault = true
     @AppStorage("terminalTmuxStartupBehaviorDefault") private var tmuxStartupBehaviorDefaultRaw = TmuxStartupBehavior.askEveryTime.rawValue
 
@@ -208,6 +209,8 @@ struct TerminalSettingsView: View {
         #if os(iOS)
         if terminalAccessoryCustomizationEnabled {
             Section {
+                Toggle("Show keyboard dismiss button", isOn: $terminalKeyboardDismissButtonEnabled)
+
                 NavigationLink {
                     TerminalAccessoryCustomizationView()
                 } label: {
@@ -222,7 +225,7 @@ struct TerminalSettingsView: View {
             } header: {
                 Text("Keyboard Accessory")
             } footer: {
-                Text("Reorder actions, add custom actions, and sync your accessory bar across devices.")
+                Text("Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

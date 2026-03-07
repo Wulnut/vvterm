@@ -904,3 +904,32 @@
 "production" = "生产";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "选择";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "空格";
+"Shortcut" = "快捷键";
+"Type" = "类型";
+"Custom Action" = "自定义操作";
+"Custom Actions" = "自定义操作";
+"Manage Custom Actions" = "管理自定义操作";
+"Available Custom Actions" = "可用自定义操作";
+"Create Action" = "创建操作";
+"No custom actions yet." = "还没有自定义操作。";
+"All custom actions are already added." = "所有自定义操作均已添加。";
+"You can create up to %lld custom actions." = "您最多可以创建 %lld 个自定义操作。";
+"Action title cannot be empty." = "操作标题不能为空。";
+"Command content cannot be empty." = "命令内容不能为空。";
+"Action not found." = "未找到操作。";
+"Commands send exactly as written." = "命令会按原样发送。";
+"Avoid storing secrets in commands or action titles." = "避免在命令或操作标题中存储敏感信息。";
+"Delete Custom Action" = "删除自定义操作";
+"Delete Custom Action?" = "删除自定义操作？";
+"Edit Custom Action" = "编辑自定义操作";
+"New Custom Action" = "新建自定义操作";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld 个自定义操作。点按一行进行编辑。";
+"Title length: %lld/%lld" = "标题长度：%lld/%lld";
+"Command length: %lld/%lld" = "命令长度：%lld/%lld";
+"Show keyboard dismiss button" = "显示隐藏键盘按钮";
+"Hide keyboard" = "隐藏键盘";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "重新排序操作，添加自定义操作，显示或隐藏隐藏键盘按钮，并在设备之间同步您的辅助栏。";

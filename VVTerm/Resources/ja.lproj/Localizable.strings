@@ -924,3 +924,32 @@
 "production" = "生産";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "選択";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "スペース";
+"Shortcut" = "ショートカット";
+"Type" = "種類";
+"Custom Action" = "カスタムアクション";
+"Custom Actions" = "カスタムアクション";
+"Manage Custom Actions" = "カスタムアクションを管理";
+"Available Custom Actions" = "利用可能なカスタムアクション";
+"Create Action" = "アクションを作成";
+"No custom actions yet." = "カスタムアクションはまだありません。";
+"All custom actions are already added." = "すべてのカスタムアクションはすでに追加されています。";
+"You can create up to %lld custom actions." = "最大 %lld 個のカスタムアクションを作成できます。";
+"Action title cannot be empty." = "アクションのタイトルを空にすることはできません。";
+"Command content cannot be empty." = "コマンド内容を空にすることはできません。";
+"Action not found." = "アクションが見つかりません。";
+"Commands send exactly as written." = "コマンドは書かれたとおりに正確に送信されます。";
+"Avoid storing secrets in commands or action titles." = "コマンドやアクション名に秘密情報を保存しないでください。";
+"Delete Custom Action" = "カスタムアクションを削除";
+"Delete Custom Action?" = "カスタムアクションを削除しますか?";
+"Edit Custom Action" = "カスタムアクションを編集";
+"New Custom Action" = "新しいカスタムアクション";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld カスタムアクション。行をタップして編集します。";
+"Title length: %lld/%lld" = "タイトルの長さ: %lld/%lld";
+"Command length: %lld/%lld" = "コマンドの長さ: %lld/%lld";
+"Show keyboard dismiss button" = "キーボードを閉じるボタンを表示";
+"Hide keyboard" = "キーボードを閉じる";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "アクションを並べ替え、カスタムアクションを追加し、キーボードを閉じるボタンの表示/非表示を切り替え、アクセサリバーをデバイス間で同期します。";

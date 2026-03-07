@@ -66,7 +66,13 @@ struct TerminalCustomActionFormView: View {
                 } header: {
                     Text("Custom Action")
                 } footer: {
-                    Text("\(title.count)/\(TerminalAccessoryProfile.maxCustomActionTitleLength) title chars")
+                    Text(
+                        String(
+                            format: String(localized: "Title length: %lld/%lld"),
+                            Int64(title.count),
+                            Int64(TerminalAccessoryProfile.maxCustomActionTitleLength)
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -81,7 +87,13 @@ struct TerminalCustomActionFormView: View {
                                 .frame(minHeight: 120)
                         }
                     } footer: {
-                        Text("\(commandContent.count)/\(TerminalAccessoryProfile.maxCommandContentLength) command chars")
+                        Text(
+                            String(
+                                format: String(localized: "Command length: %lld/%lld"),
+                                Int64(commandContent.count),
+                                Int64(TerminalAccessoryProfile.maxCommandContentLength)
+                            )
+                        )
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

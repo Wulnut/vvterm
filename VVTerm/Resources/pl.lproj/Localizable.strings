@@ -926,3 +926,32 @@
 "production" = "produkcja";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "wybór";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Spacja";
+"Shortcut" = "Skrót";
+"Type" = "Typ";
+"Custom Action" = "Akcja niestandardowa";
+"Custom Actions" = "Akcje niestandardowe";
+"Manage Custom Actions" = "Zarządzaj akcjami niestandardowymi";
+"Available Custom Actions" = "Dostępne akcje niestandardowe";
+"Create Action" = "Utwórz akcję";
+"No custom actions yet." = "Nie ma jeszcze akcji niestandardowych.";
+"All custom actions are already added." = "Wszystkie akcje niestandardowe zostały już dodane.";
+"You can create up to %lld custom actions." = "Możesz utworzyć maksymalnie %lld akcji niestandardowych.";
+"Action title cannot be empty." = "Tytuł akcji nie może być pusty.";
+"Command content cannot be empty." = "Treść polecenia nie może być pusta.";
+"Action not found." = "Nie znaleziono akcji.";
+"Commands send exactly as written." = "Polecenia są wysyłane dokładnie tak, jak zostały zapisane.";
+"Avoid storing secrets in commands or action titles." = "Unikaj przechowywania sekretów w poleceniach lub tytułach akcji.";
+"Delete Custom Action" = "Usuń akcję niestandardową";
+"Delete Custom Action?" = "Usunąć akcję niestandardową?";
+"Edit Custom Action" = "Edytuj akcję niestandardową";
+"New Custom Action" = "Nowa akcja niestandardowa";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld akcji niestandardowych. Stuknij w wiersz, aby edytować.";
+"Title length: %lld/%lld" = "Długość tytułu: %lld/%lld";
+"Command length: %lld/%lld" = "Długość polecenia: %lld/%lld";
+"Show keyboard dismiss button" = "Pokaż przycisk ukrywania klawiatury";
+"Hide keyboard" = "Ukryj klawiaturę";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Zmieniaj kolejność akcji, dodawaj akcje niestandardowe, pokazuj lub ukrywaj przycisk ukrywania klawiatury i synchronizuj pasek akcesoriów między urządzeniami.";

@@ -924,3 +924,32 @@
 "production" = "Produktion";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "Auswahl";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "Leertaste";
+"Shortcut" = "Tastenkürzel";
+"Type" = "Typ";
+"Custom Action" = "Benutzerdefinierte Aktion";
+"Custom Actions" = "Benutzerdefinierte Aktionen";
+"Manage Custom Actions" = "Benutzerdefinierte Aktionen verwalten";
+"Available Custom Actions" = "Verfügbare benutzerdefinierte Aktionen";
+"Create Action" = "Aktion erstellen";
+"No custom actions yet." = "Noch keine benutzerdefinierten Aktionen.";
+"All custom actions are already added." = "Alle benutzerdefinierten Aktionen sind bereits hinzugefügt.";
+"You can create up to %lld custom actions." = "Sie können bis zu %lld benutzerdefinierte Aktionen erstellen.";
+"Action title cannot be empty." = "Der Aktionstitel darf nicht leer sein.";
+"Command content cannot be empty." = "Der Befehlsinhalt darf nicht leer sein.";
+"Action not found." = "Aktion nicht gefunden.";
+"Commands send exactly as written." = "Befehle werden genau wie geschrieben gesendet.";
+"Avoid storing secrets in commands or action titles." = "Speichern Sie keine Geheimnisse in Befehlen oder Aktionstiteln.";
+"Delete Custom Action" = "Benutzerdefinierte Aktion löschen";
+"Delete Custom Action?" = "Benutzerdefinierte Aktion löschen?";
+"Edit Custom Action" = "Benutzerdefinierte Aktion bearbeiten";
+"New Custom Action" = "Neue benutzerdefinierte Aktion";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld benutzerdefinierte Aktionen. Tippen Sie auf eine Zeile zum Bearbeiten.";
+"Title length: %lld/%lld" = "Titellänge: %lld/%lld";
+"Command length: %lld/%lld" = "Befehlslänge: %lld/%lld";
+"Show keyboard dismiss button" = "Schaltfläche zum Ausblenden der Tastatur anzeigen";
+"Hide keyboard" = "Tastatur ausblenden";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "Ordnen Sie Aktionen neu an, fügen Sie benutzerdefinierte Aktionen hinzu, zeigen oder verbergen Sie die Schaltfläche zum Ausblenden der Tastatur und synchronisieren Sie Ihre Zubehörleiste auf allen Geräten.";

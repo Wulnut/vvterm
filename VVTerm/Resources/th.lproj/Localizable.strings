@@ -924,3 +924,32 @@
 "production" = "การผลิต";
 "restty@prod-web-01:~$ printenv APP_ENV" = "restty@prod-web-01:~$ printenv APP_ENV";
 "selection" = "การเลือก";
+
+/* Custom Actions */
+"Shift" = "Shift";
+"Space" = "เว้นวรรค";
+"Shortcut" = "ปุ่มลัด";
+"Type" = "ประเภท";
+"Custom Action" = "การทำงานกำหนดเอง";
+"Custom Actions" = "การทำงานกำหนดเอง";
+"Manage Custom Actions" = "จัดการการทำงานกำหนดเอง";
+"Available Custom Actions" = "การทำงานกำหนดเองที่พร้อมใช้";
+"Create Action" = "สร้างการทำงาน";
+"No custom actions yet." = "ยังไม่มีการทำงานกำหนดเอง";
+"All custom actions are already added." = "เพิ่มการทำงานกำหนดเองทั้งหมดแล้ว";
+"You can create up to %lld custom actions." = "คุณสามารถสร้างการทำงานกำหนดเองได้สูงสุด %lld รายการ";
+"Action title cannot be empty." = "ชื่อการทำงานต้องไม่เว้นว่าง";
+"Command content cannot be empty." = "เนื้อหาคำสั่งต้องไม่เว้นว่าง";
+"Action not found." = "ไม่พบการทำงาน";
+"Commands send exactly as written." = "คำสั่งจะถูกส่งตามที่เขียนไว้ทุกประการ";
+"Avoid storing secrets in commands or action titles." = "หลีกเลี่ยงการเก็บข้อมูลลับไว้ในคำสั่งหรือชื่อการทำงาน";
+"Delete Custom Action" = "ลบการทำงานกำหนดเอง";
+"Delete Custom Action?" = "ลบการทำงานกำหนดเองใช่ไหม";
+"Edit Custom Action" = "แก้ไขการทำงานกำหนดเอง";
+"New Custom Action" = "การทำงานกำหนดเองใหม่";
+"%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld การทำงานกำหนดเอง แตะแถวเพื่อแก้ไข";
+"Title length: %lld/%lld" = "ความยาวชื่อ: %lld/%lld";
+"Command length: %lld/%lld" = "ความยาวคำสั่ง: %lld/%lld";
+"Show keyboard dismiss button" = "แสดงปุ่มซ่อนแป้นพิมพ์";
+"Hide keyboard" = "ซ่อนแป้นพิมพ์";
+"Reorder actions, add custom actions, show or hide the keyboard dismiss button, and sync your accessory bar across devices." = "จัดลำดับการทำงานใหม่ เพิ่มการทำงานกำหนดเอง แสดงหรือซ่อนปุ่มซ่อนแป้นพิมพ์ และซิงค์แถบอุปกรณ์เสริมของคุณระหว่างอุปกรณ์ต่างๆ";
