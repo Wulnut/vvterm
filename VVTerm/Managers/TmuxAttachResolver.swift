@@ -88,9 +88,9 @@ final class TmuxAttachResolver {
         case .createManaged:
             sessionNames[entityId] = managedSessionName(for: entityId)
             sessionOwnership[entityId] = .managed
-        case .attachExisting(let name):
+        case .attachExisting(let name, let scope):
             sessionNames[entityId] = name
-            sessionOwnership[entityId] = .external
+            sessionOwnership[entityId] = ownership(for: name, scope: scope)
         case .skipTmux:
             clearRuntimeState(for: entityId, setPrompt: setPrompt)
         }
@@ -118,8 +118,8 @@ final class TmuxAttachResolver {
                 return .createManaged
             }
             let sessions = await RemoteTmuxManager.shared.listSessions(using: client)
-            if sessions.contains(where: { $0.name == remembered }) {
-                return .attachExisting(sessionName: remembered)
+            if let session = sessions.first(where: { $0.name == remembered }) {
+                return .attachExisting(sessionName: session.name, scope: session.scope)
             }
             return .createManaged
         case .askEveryTime:
@@ -184,10 +184,16 @@ final class TmuxAttachResolver {
         case .createManaged:
             return RemoteTmuxManager.shared.attachCommand(
                 sessionName: sessionName(for: entityId),
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                scope: .managed,
+                context: .startupExec
             )
-        case .attachExisting(let name):
-            return RemoteTmuxManager.shared.attachExistingCommand(sessionName: name)
+        case .attachExisting(let name, let scope):
+            return RemoteTmuxManager.shared.attachExistingCommand(
+                sessionName: name,
+                scope: scope,
+                context: .startupExec
+            )
         }
     }
 
@@ -202,10 +208,11 @@ final class TmuxAttachResolver {
         case .createManaged:
             return RemoteTmuxManager.shared.attachExecCommand(
                 sessionName: sessionName(for: entityId),
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                scope: .managed
             )
-        case .attachExisting(let name):
-            return RemoteTmuxManager.shared.attachExistingExecCommand(sessionName: name)
+        case .attachExisting(let name, let scope):
+            return RemoteTmuxManager.shared.attachExistingExecCommand(sessionName: name, scope: scope)
         }
     }
 
@@ -217,6 +224,7 @@ final class TmuxAttachResolver {
         return source.map {
             TmuxAttachSessionInfo(
                 name: $0.name,
+                scope: $0.scope,
                 attachedClients: max(0, $0.attachedClients),
                 windowCount: max(1, $0.windowCount)
             )
@@ -229,6 +237,10 @@ final class TmuxAttachResolver {
             || lowercased.hasPrefix("vvterm-")
             || lowercased.hasPrefix("vivyterm_")
             || lowercased.hasPrefix("vivyterm-")
+    }
+
+    func isCurrentDeviceManagedSessionName(_ name: String) -> Bool {
+        name.hasPrefix("vvterm_\(DeviceIdentity.id)_")
     }
 
     // MARK: - Private
@@ -273,5 +285,12 @@ final class TmuxAttachResolver {
         }
         currentPrompt = promptQueue.removeFirst()
         setPrompt(currentPrompt)
+    }
+
+    private func ownership(for sessionName: String, scope: TmuxSocketScope) -> SessionOwnership {
+        if scope == .managed || isCurrentDeviceManagedSessionName(sessionName) {
+            return .managed
+        }
+        return .external
     }
 }

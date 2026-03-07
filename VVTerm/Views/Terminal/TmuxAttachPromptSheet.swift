@@ -10,6 +10,11 @@ struct TmuxAttachPromptSheet: View {
         !prompt.existingSessions.isEmpty
     }
 
+    private var duplicateSessionNames: Set<String> {
+        let grouped = Dictionary(grouping: prompt.existingSessions, by: \.name)
+        return Set(grouped.compactMap { $0.value.count > 1 ? $0.key : nil })
+    }
+
     var body: some View {
         #if os(iOS)
         NavigationStack {
@@ -57,7 +62,7 @@ struct TmuxAttachPromptSheet: View {
                 Section {
                     ForEach(prompt.existingSessions) { session in
                         Button {
-                            confirm(.attachExisting(sessionName: session.name))
+                            confirm(.attachExisting(sessionName: session.name, scope: session.scope))
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "terminal")
@@ -92,7 +97,7 @@ struct TmuxAttachPromptSheet: View {
                 Section {
                     ForEach(prompt.existingSessions) { session in
                         Button {
-                            confirm(.attachExisting(sessionName: session.name))
+                            confirm(.attachExisting(sessionName: session.name, scope: session.scope))
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "terminal")
@@ -159,7 +164,18 @@ struct TmuxAttachPromptSheet: View {
             )
         }
 
-        return "\(attachment) • \(clients) • \(windows)"
+        var parts = [attachment, clients, windows]
+        if duplicateSessionNames.contains(session.name) {
+            let socketLabel = switch session.scope {
+            case .managed:
+                String(localized: "VVTerm socket")
+            case .userDefault:
+                String(localized: "Default socket")
+            }
+            parts.append(socketLabel)
+        }
+
+        return parts.joined(separator: " • ")
     }
 
     private var actionRow: some View {
