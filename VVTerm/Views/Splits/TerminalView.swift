@@ -23,6 +23,7 @@ struct TerminalTabView: View {
 
     @State private var layoutVersion: Int = 0
     @State private var showingCloseConfirmation = false
+    @State private var showingSplitPaneUpgradeAlert = false
 
     @EnvironmentObject var ghosttyApp: Ghostty.App
     @Environment(\.colorScheme) private var colorScheme
@@ -113,6 +114,7 @@ struct TerminalTabView: View {
         } message: {
             Text(permissionErrorMessage)
         }
+        .splitPaneProFeatureAlert(isPresented: $showingSplitPaneUpgradeAlert)
         .onAppear {
             updateKeyMonitor()
         }
@@ -217,11 +219,19 @@ struct TerminalTabView: View {
     // MARK: - Split Actions
 
     func splitHorizontal() {
+        guard StoreManager.shared.isPro else {
+            showingSplitPaneUpgradeAlert = true
+            return
+        }
         guard tabManager.splitHorizontal(tab: tab, paneId: tab.focusedPaneId) != nil else { return }
         layoutVersion += 1
     }
 
     func splitVertical() {
+        guard StoreManager.shared.isPro else {
+            showingSplitPaneUpgradeAlert = true
+            return
+        }
         guard tabManager.splitVertical(tab: tab, paneId: tab.focusedPaneId) != nil else { return }
         layoutVersion += 1
     }
@@ -384,7 +394,7 @@ struct TerminalPaneView: View {
     @State private var isInstallingMosh = false
     @State private var dismissFallbackBanner = false
     @State private var reconnectInFlight = false
-    @State private var terminalBackgroundColor: Color = .black
+    @State private var terminalBackgroundColor: Color = Self.initialTerminalBackgroundColor()
     @State private var connectWatchdogToken = UUID()
 
     @AppStorage("terminalThemeName") private var terminalThemeName = "Aizen Dark"
@@ -474,7 +484,7 @@ struct TerminalPaneView: View {
             } else {
                 switch connectionState {
                 case .connecting:
-                    TerminalStatusCard {
+                    TerminalStatusCard(showsScrim: false) {
                         VStack(spacing: 12) {
                             ProgressView()
                                 .progressViewStyle(.circular)
@@ -485,7 +495,7 @@ struct TerminalPaneView: View {
                         .multilineTextAlignment(.center)
                     }
                 case .reconnecting(let attempt):
-                    TerminalStatusCard {
+                    TerminalStatusCard(showsScrim: false) {
                         VStack(spacing: 16) {
                             ProgressView()
                                 .progressViewStyle(.circular)
@@ -540,7 +550,7 @@ struct TerminalPaneView: View {
                     }
                 case .connected, .idle:
                     if !isReady && !terminalExists {
-                        TerminalStatusCard {
+                        TerminalStatusCard(showsScrim: false) {
                             VStack(spacing: 12) {
                                 ProgressView()
                                     .progressViewStyle(.circular)
@@ -555,7 +565,7 @@ struct TerminalPaneView: View {
             }
 
             if paneState?.tmuxStatus == .installing {
-                TerminalStatusCard {
+                TerminalStatusCard(showsScrim: false) {
                     VStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(.circular)
@@ -567,7 +577,7 @@ struct TerminalPaneView: View {
             }
 
             if isInstallingMosh {
-                TerminalStatusCard {
+                TerminalStatusCard(showsScrim: false) {
                     VStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(.circular)
@@ -611,7 +621,6 @@ struct TerminalPaneView: View {
                     .transition(.opacity)
             }
         }
-        .ignoresSafeArea(.container, edges: .bottom)
         .opacity(isFocused ? 1.0 : 0.7)
         .clipped()
         .task {
@@ -804,16 +813,28 @@ struct TerminalPaneView: View {
     private func updateTerminalBackgroundColor() {
         let themeName = effectiveThemeName
         Task.detached(priority: .utility) {
-            let resolved = ThemeColorParser.backgroundColor(for: themeName)
+            let resolved = ThemeColorParser.backgroundColor(for: themeName)!
             await MainActor.run {
-                if let color = resolved {
-                    terminalBackgroundColor = color
-                    UserDefaults.standard.set(color.toHex(), forKey: "terminalBackgroundColor")
-                } else {
-                    terminalBackgroundColor = Color(NSColor.windowBackgroundColor)
-                }
+                terminalBackgroundColor = resolved
+                UserDefaults.standard.set(resolved.toHex(), forKey: "terminalBackgroundColor")
             }
         }
+    }
+
+    private static func initialTerminalBackgroundColor() -> Color {
+        let defaults = UserDefaults.standard
+
+        if let cachedHex = defaults.string(forKey: "terminalBackgroundColor") {
+            return Color.fromHex(cachedHex)
+        }
+
+        let usePerAppearanceTheme = defaults.object(forKey: "terminalUsePerAppearanceTheme") as? Bool ?? true
+        let darkThemeName = defaults.string(forKey: "terminalThemeName") ?? "Aizen Dark"
+        let lightThemeName = defaults.string(forKey: "terminalThemeNameLight") ?? "Aizen Light"
+        let isDarkAppearance = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let themeName = usePerAppearanceTheme ? (isDarkAppearance ? darkThemeName : lightThemeName) : darkThemeName
+
+        return ThemeColorParser.backgroundColor(for: themeName)!
     }
 
     private var voiceTriggerButton: some View {

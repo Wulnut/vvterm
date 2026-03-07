@@ -567,82 +567,6 @@ struct SSHTerminalWrapper: NSViewRepresentable {
 import UIKit
 import SwiftUI
 
-// MARK: - Terminal Container View
-
-/// Lightweight container that holds the terminal view after deferred creation
-/// This allows navigation animations to complete smoothly before heavy Metal/GPU setup
-final class TerminalContainerUIView: UIView {
-    weak var terminalView: GhosttyTerminalView?
-    var isActive = false {
-        didSet {
-            if isActive != oldValue {
-                pendingRefresh = true
-                setNeedsLayout()
-            }
-        }
-    }
-    var keyboardInset: CGFloat = 0 {
-        didSet {
-            if keyboardInset != oldValue {
-                setNeedsLayout()
-            }
-        }
-    }
-    private var pendingRefresh = false
-    private var lastLaidOutSize: CGSize = .zero
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .clear
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func availableBoundsForTerminal() -> CGRect {
-        let clampedInset = min(max(0, effectiveKeyboardInset()), bounds.height)
-        return bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: clampedInset, right: 0))
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-
-        guard let terminalView = terminalView else { return }
-        let availableBounds = availableBoundsForTerminal()
-        if terminalView.frame != availableBounds {
-            terminalView.frame = availableBounds
-        }
-        if availableBounds.size != lastLaidOutSize {
-            lastLaidOutSize = availableBounds.size
-            if availableBounds.width > 0 && availableBounds.height > 0 {
-                terminalView.sizeDidChange(availableBounds.size)
-            }
-        }
-
-        guard bounds.width > 0 && bounds.height > 0 else { return }
-        if isActive && pendingRefresh {
-            terminalView.forceRefresh()
-            pendingRefresh = false
-        }
-    }
-
-    func requestRefresh() {
-        pendingRefresh = true
-        setNeedsLayout()
-    }
-
-    private func effectiveKeyboardInset() -> CGFloat {
-        // Prefer iOS keyboard layout guide because notification ordering can be stale
-        // when the app backgrounds/foregrounds with keyboard still visible.
-        if window != nil {
-            let guideOverlap = bounds.intersection(keyboardLayoutGuide.layoutFrame).height
-            return guideOverlap
-        }
-        return keyboardInset
-    }
-}
-
 /// SwiftUI wrapper that uses GeometryReader to get proper size (matches official Ghostty pattern)
 struct SSHTerminalWrapper: View {
     let session: ConnectionSession
@@ -690,15 +614,19 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIView {
+        guard let app = ghosttyApp.app else {
+            return UIView(frame: .zero)
+        }
+
         let coordinator = context.coordinator
 
         // Check if terminal already exists for this session (reuse to save memory)
         if let existingTerminal = ConnectionSessionManager.shared.getTerminal(for: session.id) {
             coordinator.terminalView = existingTerminal
             coordinator.isTerminalReady = true
-            // Mark as reusing so we don't cleanup on deinit
             coordinator.preserveSession = true
             existingTerminal.onVoiceButtonTapped = onVoiceTrigger
+            existingTerminal.onProcessExit = onProcessExit
             existingTerminal.onPwdChange = { [sessionId = session.id] rawDirectory in
                 ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
             }
@@ -717,139 +645,81 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
                 }
             }
 
-            // Rewrap in a fresh container so layout/safe-area changes apply correctly.
-            let container = TerminalContainerUIView()
-            coordinator.containerView = container
-            coordinator.startKeyboardMonitoring()
-
             if existingTerminal.superview != nil {
                 existingTerminal.removeFromSuperview()
             }
-            existingTerminal.frame = container.bounds
-            existingTerminal.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            container.addSubview(existingTerminal)
-            container.terminalView = existingTerminal
-            coordinator.lastReportedSize = container.bounds.size
-            if container.bounds.width > 0 && container.bounds.height > 0 {
-                existingTerminal.sizeDidChange(container.bounds.size)
-            }
-
-            // Resume rendering since it was paused when navigating away
-            existingTerminal.resumeRendering()
-
-            // Force refresh after a brief delay to ensure view is in window hierarchy
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak existingTerminal, session] in
-                guard let terminal = existingTerminal else { return }
-                terminal.forceRefresh()
-
-                // Also trigger SSH resize to force server to redraw prompt
-                if let sshClient = ConnectionSessionManager.shared.sshClient(for: session),
-                   let shellId = ConnectionSessionManager.shared.shellId(for: session) {
-                    Task {
-                        if let size = terminal.terminalSize() {
-                            try? await sshClient.resize(cols: Int(size.columns), rows: Int(size.rows), for: shellId)
-                        }
-                    }
-                }
+            if size.width > 0 && size.height > 0 {
+                coordinator.lastReportedSize = size
+                existingTerminal.frame = CGRect(origin: .zero, size: size)
+                existingTerminal.sizeDidChange(size)
             }
 
             onReady()
             if ConnectionSessionManager.shared.shellId(for: session) == nil {
                 coordinator.startSSHConnection(terminal: existingTerminal)
             }
-            return container
+            return existingTerminal
         }
 
-        // Create a container view that will hold the terminal once it's ready
-        // This allows the navigation animation to complete smoothly
-        let container = TerminalContainerUIView()
-        coordinator.containerView = container
-        coordinator.startKeyboardMonitoring()
+        let initialSize = (size.width > 0 && size.height > 0) ? size : CGSize(width: 800, height: 600)
+        let terminalView = GhosttyTerminalView(
+            frame: CGRect(origin: .zero, size: initialSize),
+            worktreePath: NSHomeDirectory(),
+            ghosttyApp: app,
+            appWrapper: ghosttyApp,
+            paneId: session.id.uuidString,
+            useCustomIO: true
+        )
 
-        // Defer heavy terminal creation to after animation completes (150ms for iOS navigation)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak coordinator, weak container] in
-            guard let coordinator = coordinator, let container = container else { return }
-            guard let app = ghosttyApp.app else { return }
+        terminalView.onReady = { [weak coordinator, weak terminalView] in
+            coordinator?.isTerminalReady = true
+            onReady()
+            if let terminalView = terminalView {
+                coordinator?.startSSHConnection(terminal: terminalView)
+            }
+        }
+        terminalView.onProcessExit = onProcessExit
+        terminalView.onVoiceButtonTapped = onVoiceTrigger
+        terminalView.onPwdChange = { [sessionId = session.id] rawDirectory in
+            ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
+        }
 
-            // Create terminal on main thread but after navigation animation
-            let terminalView = GhosttyTerminalView(
-                frame: container.bounds,
-                worktreePath: NSHomeDirectory(),
-                ghosttyApp: app,
-                appWrapper: ghosttyApp,
-                paneId: session.id.uuidString,
-                useCustomIO: true
-            )
+        coordinator.terminalView = terminalView
+        ConnectionSessionManager.shared.registerTerminal(terminalView, for: session.id)
+        ConnectionSessionManager.shared.registerShellCancelHandler({ [weak coordinator] in
+            coordinator?.cancelShell()
+        }, for: session.id)
+        ConnectionSessionManager.shared.registerShellSuspendHandler({ [weak coordinator] in
+            coordinator?.suspendShell()
+        }, for: session.id)
 
-            terminalView.onReady = { [weak coordinator, weak terminalView] in
-                coordinator?.isTerminalReady = true
-                onReady()
-                if let terminalView = terminalView {
-                    coordinator?.startSSHConnection(terminal: terminalView)
+        terminalView.writeCallback = { [weak coordinator] data in
+            coordinator?.sendToSSH(data)
+        }
+        terminalView.setupWriteCallback()
+        terminalView.onResize = { [session] cols, rows in
+            guard cols > 0 && rows > 0 else { return }
+            Task {
+                if let sshClient = ConnectionSessionManager.shared.sshClient(for: session),
+                   let shellId = ConnectionSessionManager.shared.shellId(for: session) {
+                    try? await sshClient.resize(cols: cols, rows: rows, for: shellId)
                 }
-            }
-            terminalView.onProcessExit = onProcessExit
-            terminalView.onVoiceButtonTapped = onVoiceTrigger
-            terminalView.onPwdChange = { [sessionId = session.id] rawDirectory in
-                ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
-            }
-
-            // Store terminal reference
-            coordinator.terminalView = terminalView
-            ConnectionSessionManager.shared.registerTerminal(terminalView, for: session.id)
-
-            // Register shell cancel handler
-            ConnectionSessionManager.shared.registerShellCancelHandler({ [weak coordinator] in
-                coordinator?.cancelShell()
-            }, for: session.id)
-            ConnectionSessionManager.shared.registerShellSuspendHandler({ [weak coordinator] in
-                coordinator?.suspendShell()
-            }, for: session.id)
-
-            // Setup write callback
-            terminalView.writeCallback = { [weak coordinator] data in
-                coordinator?.sendToSSH(data)
-            }
-            terminalView.setupWriteCallback()
-            terminalView.onResize = { [session] cols, rows in
-                guard cols > 0 && rows > 0 else { return }
-                Task {
-                    if let sshClient = ConnectionSessionManager.shared.sshClient(for: session),
-                       let shellId = ConnectionSessionManager.shared.shellId(for: session) {
-                        try? await sshClient.resize(cols: cols, rows: rows, for: shellId)
-                    }
-                }
-            }
-
-            // Add terminal to container with fade-in animation
-            terminalView.frame = container.bounds
-            terminalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            terminalView.alpha = 0
-            container.addSubview(terminalView)
-            container.terminalView = terminalView
-
-            UIView.animate(withDuration: 0.15) {
-                terminalView.alpha = 1
-            } completion: { [weak terminalView] _ in
-                // Force refresh after fade-in completes to ensure content is visible
-                terminalView?.forceRefresh()
             }
         }
 
-        return container
+        coordinator.lastReportedSize = initialSize
+        if size.width > 0 && size.height > 0 {
+            terminalView.sizeDidChange(size)
+        }
+        if !isActive {
+            terminalView.pauseRendering()
+        }
+
+        return terminalView
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Get terminal view - either directly or from container
-        let terminalView: GhosttyTerminalView?
-        let isDirectTerminalView: Bool
-        if let direct = uiView as? GhosttyTerminalView {
-            terminalView = direct
-            isDirectTerminalView = true
-        } else if let container = uiView as? TerminalContainerUIView {
-            terminalView = container.terminalView
-            isDirectTerminalView = false
-        } else {
+        guard let terminalView = uiView as? GhosttyTerminalView else {
             return
         }
 
@@ -858,24 +728,29 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         if !sessionExists {
             // Session was closed externally, cleanup terminal
             context.coordinator.cancelShell()
-            terminalView?.writeCallback = nil
-            terminalView?.onReady = nil
-            terminalView?.onProcessExit = nil
+            terminalView.writeCallback = nil
+            terminalView.onReady = nil
+            terminalView.onProcessExit = nil
             return
         }
 
-        guard let terminalView = terminalView else { return }
+        let wasActive = context.coordinator.wasActive
 
         terminalView.onVoiceButtonTapped = onVoiceTrigger
-        if isDirectTerminalView, size.width > 0, size.height > 0, size != context.coordinator.lastReportedSize {
+        if size.width > 0, size.height > 0, size != context.coordinator.lastReportedSize {
             context.coordinator.lastReportedSize = size
             terminalView.sizeDidChange(size)
         }
 
         if context.coordinator.isTerminalReady {
-            // Keep rendering even when inactive so tab switching doesn't stall frames.
-            terminalView.resumeRendering()
+            if isActive && !wasActive {
+                terminalView.resumeRendering()
+                terminalView.forceRefresh()
+            } else if !isActive && wasActive {
+                terminalView.pauseRendering()
+            }
         }
+        context.coordinator.wasActive = isActive
 
         let autoReconnectEnabled = (UserDefaults.standard.object(forKey: "sshAutoReconnect") as? Bool) ?? true
         let shellMissing = ConnectionSessionManager.shared.shellId(for: session) == nil
@@ -893,16 +768,6 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
             context.coordinator.startSSHConnection(terminal: terminalView)
         }
 
-        if let container = uiView as? TerminalContainerUIView {
-            container.isActive = isActive
-            container.keyboardInset = context.coordinator.keyboardInset
-            if isActive {
-                container.requestRefresh()
-            } else {
-                container.setNeedsLayout()
-            }
-        }
-
         // Only capture keyboard focus when terminal is active (not hidden behind stats view)
         if isActive && context.coordinator.isTerminalReady {
             if terminalView.window != nil && !terminalView.isFirstResponder {
@@ -912,25 +777,17 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        guard let terminalView = uiView as? GhosttyTerminalView else { return }
+
         // Check if session still exists - if it does, user just navigated away
         // Keep terminal alive for when they come back
         let sessionStillExists = ConnectionSessionManager.shared.sessions.contains { $0.id == coordinator.sessionId }
 
-        // Get terminal view - either directly or from container
-        let terminalView: GhosttyTerminalView?
-        if let direct = uiView as? GhosttyTerminalView {
-            terminalView = direct
-        } else if let container = uiView as? TerminalContainerUIView {
-            terminalView = container.terminalView
-        } else {
-            terminalView = nil
-        }
-
         if sessionStillExists {
             // Session still active - user just navigated away
             // Pause rendering but keep everything alive
-            terminalView?.pauseRendering()
-            _ = terminalView?.resignFirstResponder()
+            terminalView.pauseRendering()
+            _ = terminalView.resignFirstResponder()
 
             // Mark coordinator to not cleanup in deinit
             // IMPORTANT: Do NOT set terminalView = nil here!
@@ -943,20 +800,9 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         // Session was closed - full cleanup
         ConnectionSessionManager.shared.unregisterShellCancelHandler(for: coordinator.sessionId)
         ConnectionSessionManager.shared.unregisterShellSuspendHandler(for: coordinator.sessionId)
+        coordinator.terminalView = nil
         ConnectionSessionManager.shared.unregisterTerminal(for: coordinator.sessionId)
         coordinator.cancelShell()
-
-        // Remove terminal from view hierarchy
-        if let terminalView = terminalView {
-            terminalView.pauseRendering()
-            _ = terminalView.resignFirstResponder()
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak terminalView] in
-                guard let terminalView = terminalView else { return }
-                terminalView.cleanup()
-                terminalView.removeFromSuperview()
-            }
-        }
     }
 
     // MARK: - Coordinator
@@ -967,7 +813,6 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         let sessionId: UUID
         let onProcessExit: () -> Void
         weak var terminalView: GhosttyTerminalView?
-        weak var containerView: TerminalContainerUIView?
 
         let sshClient: SSHClient
         var shellId: UUID?
@@ -979,10 +824,8 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
 
         /// If true, session is still active and we shouldn't cleanup on deinit (user just navigated away)
         var preserveSession = false
+        var wasActive = false
         var lastReportedSize: CGSize = .zero
-        var keyboardInset: CGFloat = 0
-        private var keyboardObservers: [NSObjectProtocol] = []
-        private var lastKeyboardFrame: CGRect = .zero
 
         init(server: Server, credentials: ServerCredentials, sessionId: UUID, onProcessExit: @escaping () -> Void, sshClient: SSHClient) {
             self.server = server
@@ -992,70 +835,12 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
             self.sshClient = sshClient
         }
 
-        func startKeyboardMonitoring() {
-            guard keyboardObservers.isEmpty else { return }
-            let center = NotificationCenter.default
-            keyboardObservers.append(center.addObserver(
-                forName: UIResponder.keyboardWillChangeFrameNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                self?.handleKeyboardNotification(notification)
-            })
-            keyboardObservers.append(center.addObserver(
-                forName: UIResponder.keyboardWillHideNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                self?.handleKeyboardNotification(notification)
-            })
-        }
-
-        private func handleKeyboardNotification(_ notification: Notification) {
-            guard let containerView = containerView,
-                  let window = containerView.window,
-                  let frameValue = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-                return
-            }
-
-            lastKeyboardFrame = frameValue
-            let keyboardFrameInWindow = window.convert(frameValue, from: nil)
-            let containerFrameInWindow = containerView.convert(containerView.bounds, to: window)
-            let overlap = containerFrameInWindow.intersection(keyboardFrameInWindow).height
-            let newInset = max(0, overlap)
-
-            if newInset != keyboardInset {
-                keyboardInset = newInset
-                containerView.keyboardInset = newInset
-                containerView.setNeedsLayout()
-                containerView.layoutIfNeeded()
-            }
-        }
-
         // MARK: - SSHTerminalCoordinator hooks
 
         func onShellStarted(terminal: GhosttyTerminalView) async {
             await applyWorkingDirectoryIfNeeded()
-            // Force refresh after shell starts (must be on main thread)
-            await MainActor.run { [weak self] in
+            await MainActor.run {
                 terminal.forceRefresh()
-
-                // Additional delayed refresh to catch prompt after it arrives from server
-                // Also send resize to force server to redraw prompt
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak terminal, weak self] in
-                    terminal?.forceRefresh()
-
-                    // Trigger resize to force server to redraw prompt
-                    if let self = self {
-                        Task {
-                            if let size = terminal?.terminalSize() {
-                                if let shellId = self.shellId {
-                                    try? await self.sshClient.resize(cols: Int(size.columns), rows: Int(size.rows), for: shellId)
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -1074,9 +859,6 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         }
 
         deinit {
-            for observer in keyboardObservers {
-                NotificationCenter.default.removeObserver(observer)
-            }
             // Don't cleanup if session is still active (user just navigated away)
             guard !preserveSession else { return }
             cancelShell()

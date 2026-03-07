@@ -12,12 +12,16 @@ struct ContentView: View {
     @StateObject private var serverManager = ServerManager.shared
     @StateObject private var tabManager = TerminalTabManager.shared
     @StateObject private var storeManager = StoreManager.shared
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedWorkspace: Workspace?
     @State private var selectedServer: Server?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var restoredColumnVisibility: NavigationSplitViewVisibility = .all
     @SceneStorage("vvterm.zenMode.macos") private var isZenModeEnabled = false
+    @AppStorage("terminalThemeName") private var terminalThemeName = "Aizen Dark"
+    @AppStorage("terminalThemeNameLight") private var terminalThemeNameLight = "Aizen Light"
+    @AppStorage("terminalUsePerAppearanceTheme") private var usePerAppearanceTheme = true
 
     /// Whether the selected server is connected
     private var isSelectedServerConnected: Bool {
@@ -37,6 +41,22 @@ struct ContentView: View {
     private var effectiveZenModeEnabled: Bool {
         canUseZenMode && isZenModeEnabled
     }
+
+    private var effectiveTerminalThemeName: String {
+        guard usePerAppearanceTheme else { return terminalThemeName }
+        return colorScheme == .dark ? terminalThemeName : terminalThemeNameLight
+    }
+
+    private var macOSWindowBackgroundColor: Color {
+        ThemeColorParser.backgroundColor(for: effectiveTerminalThemeName)!
+    }
+
+    #if os(macOS)
+    private var zenWindowTitle: String {
+        guard effectiveZenModeEnabled, let selectedServer else { return "" }
+        return selectedServer.name
+    }
+    #endif
 
     private var isSidebarVisible: Bool {
         columnVisibility != .detailOnly
@@ -136,6 +156,7 @@ struct ContentView: View {
             // LEFT: Sidebar with workspace + servers
             ServerSidebarView(
                 serverManager: serverManager,
+                backgroundColor: macOSWindowBackgroundColor,
                 selectedWorkspace: $selectedWorkspace,
                 selectedServer: $selectedServer
             )
@@ -144,6 +165,7 @@ struct ContentView: View {
             // RIGHT: Detail view based on selection state
             detailContent
         }
+        .background(macOSWindowBackgroundColor)
         .onAppear {
             if selectedWorkspace == nil {
                 selectedWorkspace = serverManager.workspaces.first
@@ -183,7 +205,8 @@ struct ContentView: View {
             .focusedValue(\.isZenModeEnabled, canUseZenMode ? effectiveZenModeEnabled : nil)
             .background(
                 MainWindowChromeBridge(
-                    windowTitle: effectiveZenModeEnabled ? (selectedServer?.name ?? "") : ""
+                    windowTitle: zenWindowTitle,
+                    backgroundColor: macOSWindowBackgroundColor
                 )
                     .frame(width: 0, height: 0)
             )
@@ -204,6 +227,7 @@ struct ContentView: View {
 #if os(macOS)
 private struct MainWindowChromeBridge: NSViewRepresentable {
     let windowTitle: String
+    let backgroundColor: Color
 
     func makeNSView(context: Context) -> NSView {
         WindowObserverView()
@@ -212,13 +236,16 @@ private struct MainWindowChromeBridge: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         guard let view = nsView as? WindowObserverView else { return }
         view.windowTitle = windowTitle
+        view.backgroundColor = backgroundColor
         view.applyIfPossible()
     }
 
-    private func configure(_ window: NSWindow, title: String) {
+    private func configure(_ window: NSWindow, title: String, backgroundColor: Color) {
+        let nsBackgroundColor = NSColor(backgroundColor)
         if window.title != title {
             window.title = title
         }
+        window.backgroundColor = nsBackgroundColor
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         // Keep the content area interactive. Enabling background dragging here
@@ -227,10 +254,15 @@ private struct MainWindowChromeBridge: NSViewRepresentable {
         window.styleMask.insert(.fullSizeContentView)
         window.toolbarStyle = .unified
         window.toolbar?.showsBaselineSeparator = false
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = nsBackgroundColor.cgColor
+        window.contentView?.superview?.wantsLayer = true
+        window.contentView?.superview?.layer?.backgroundColor = nsBackgroundColor.cgColor
     }
 
     final class WindowObserverView: NSView {
-        var windowTitle = "VVTerm"
+        var windowTitle = ""
+        var backgroundColor: Color = .clear
 
         override var intrinsicContentSize: NSSize { .zero }
 
@@ -247,8 +279,15 @@ private struct MainWindowChromeBridge: NSViewRepresentable {
         func applyIfPossible() {
             DispatchQueue.main.async { [weak self] in
                 guard let window = self?.window else { return }
-                MainWindowChromeBridge(windowTitle: self?.windowTitle ?? "VVTerm")
-                    .configure(window, title: self?.windowTitle ?? "VVTerm")
+                MainWindowChromeBridge(
+                    windowTitle: self?.windowTitle ?? "",
+                    backgroundColor: self?.backgroundColor ?? .clear
+                )
+                .configure(
+                    window,
+                    title: self?.windowTitle ?? "",
+                    backgroundColor: self?.backgroundColor ?? .clear
+                )
             }
         }
     }

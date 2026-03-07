@@ -63,19 +63,12 @@ class GhosttyTerminalView: UIView {
     /// Prevent rendering when the view is offscreen or being torn down.
     private var isShuttingDown = false
     private var isPaused = false
-    private var displayLink: CADisplayLink?
-    private var needsRender = false
-    private var blinkTimer: DispatchSourceTimer?
+    private var customIORedrawScheduled = false
     private var keyRepeatTimer: DispatchSourceTimer?
     private var repeatingHardwareKey: UIKey?
     private var repeatingFallbackKey: Ghostty.Input.Key?
     private var repeatingFallbackModifiers: UIKeyModifierFlags = []
     private var repeatingKeyCode: UInt16?
-
-    /// Idle detection for display link - stops after timeout to save CPU
-    private var lastActivityTime: CFAbsoluteTime = 0
-    private static let idleTimeout: CFTimeInterval = 0.1  // 100ms idle before stopping display link
-    private static let blinkInterval: TimeInterval = 0.5  // Cursor blink cadence when idle
 
     /// Track last surface size in pixels to avoid redundant resize/draw work.
     private var lastPixelSize: CGSize = .zero
@@ -161,68 +154,27 @@ class GhosttyTerminalView: UIView {
         if isPaused { return }
         guard surface?.unsafeCValue != nil else { return }
         guard bounds.width > 0 && bounds.height > 0 else { return }
-
-        lastActivityTime = CFAbsoluteTimeGetCurrent()
-        needsRender = true
-
-        // Start display link if not running
-        if displayLink == nil {
-            startDisplayLink()
-        }
+        markIOSurfaceLayersForDisplay()
     }
 
-    private func startDisplayLink() {
-        guard displayLink == nil else { return }
-        let link = CADisplayLink(target: self, selector: #selector(displayLinkTick))
-        link.add(to: .main, forMode: .common)
-        displayLink = link
-    }
+    private func scheduleCustomIORedraw() {
+        guard useCustomIO else { return }
+        guard !customIORedrawScheduled else { return }
+        customIORedrawScheduled = true
 
-    private func stopDisplayLink() {
-        displayLink?.invalidate()
-        displayLink = nil
-    }
-
-    private func startBlinkTimerIfNeeded() {
-        guard blinkTimer == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + Self.blinkInterval, repeating: Self.blinkInterval)
-        timer.setEventHandler { [weak self] in
+        DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            guard !self.isShuttingDown, !self.isPaused, self.window != nil else { return }
-            // Tick Ghostty to advance cursor blink state, then render a frame.
-            self.ghosttyAppWrapper?.appTick()
-            self.requestRender()
+            self.customIORedrawScheduled = false
+            guard !self.isShuttingDown, !self.isPaused else { return }
+            guard let surface = self.surface?.unsafeCValue else { return }
+            guard self.bounds.width > 0 && self.bounds.height > 0 else { return }
+
+            self.updateContentScaleIfNeeded()
+            self.configureIOSurfaceLayers(size: self.bounds.size)
+            ghostty_surface_refresh(surface)
+            ghostty_surface_draw(surface)
+            self.markIOSurfaceLayersForDisplay()
         }
-        timer.resume()
-        blinkTimer = timer
-    }
-
-    private func stopBlinkTimer() {
-        blinkTimer?.cancel()
-        blinkTimer = nil
-    }
-
-    @objc private func displayLinkTick() {
-        guard !isShuttingDown, !isPaused else { return }
-
-        // Check if we've been idle too long
-        let now = CFAbsoluteTimeGetCurrent()
-        if now - lastActivityTime > Self.idleTimeout && !needsRender {
-            stopDisplayLink()
-            return
-        }
-
-        // Only render if needed
-        guard needsRender, let surface = surface?.unsafeCValue else { return }
-        performRender(surface: surface)
-    }
-
-    private func performRender(surface: ghostty_surface_t) {
-        needsRender = false
-        ghostty_surface_refresh(surface)
-        ghostty_surface_draw(surface)
-        ghosttyAppWrapper?.appTick()
     }
 
     // MARK: - Initialization
@@ -301,8 +253,6 @@ class GhosttyTerminalView: UIView {
     func cleanup() {
         isShuttingDown = true
         isPaused = true
-        stopDisplayLink()
-        stopBlinkTimer()
         stopMomentumScrolling()
 
         // Remove config reload observer
@@ -321,11 +271,11 @@ class GhosttyTerminalView: UIView {
         onResize = nil
         writeCallback = nil
 
-        // Stop rendering/input callbacks and mark as occluded
+        // Stop rendering/input callbacks and mark the surface as not visible.
         if let cSurface = surface?.unsafeCValue {
             ghostty_surface_set_write_callback(cSurface, nil, nil)
             ghostty_surface_set_focus(cSurface, false)
-            ghostty_surface_set_occlusion(cSurface, true)
+            ghostty_surface_set_occlusion(cSurface, false)
         }
 
         // Unregister surface from app wrapper synchronously
@@ -344,12 +294,10 @@ class GhosttyTerminalView: UIView {
     func pauseRendering() {
         guard !isShuttingDown else { return }
         isPaused = true
-        stopDisplayLink()
-        stopBlinkTimer()
 
         if let surface = surface?.unsafeCValue {
             ghostty_surface_set_focus(surface, false)
-            ghostty_surface_set_occlusion(surface, true)
+            ghostty_surface_set_occlusion(surface, false)
         }
     }
 
@@ -359,15 +307,11 @@ class GhosttyTerminalView: UIView {
         isPaused = false
 
         if let surface = surface?.unsafeCValue {
-            ghostty_surface_set_occlusion(surface, false)
+            ghostty_surface_set_occlusion(surface, true)
         }
 
-        // Request a render to restart display link if needed
         sizeDidChange(bounds.size)
         requestRender()
-        if window != nil {
-            startBlinkTimerIfNeeded()
-        }
     }
 
     // MARK: - Layer Type
@@ -386,7 +330,7 @@ class GhosttyTerminalView: UIView {
         ) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor [weak self] in
-                self?.needsRender = true
+                self?.requestRender()
             }
         }
     }
@@ -447,32 +391,24 @@ class GhosttyTerminalView: UIView {
         guard pixelWidth > 0 && pixelHeight > 0 else { return }
         let pixelSize = CGSize(width: pixelWidth, height: pixelHeight)
 
-        // Avoid redundant resize/draw passes when size hasn't changed.
         let sizeChanged = pixelSize != lastPixelSize || scale != lastContentScale
-        if !sizeChanged {
-            if !didSignalReady {
-                didSignalReady = true
-                DispatchQueue.main.async { [weak self] in
-                    self?.onReady?()
-                }
-            }
-            return
-        }
-        lastPixelSize = pixelSize
-        lastContentScale = scale
+        if sizeChanged {
+            lastPixelSize = pixelSize
+            lastContentScale = scale
 
-        ghostty_surface_set_content_scale(surface, scale, scale)
-        ghostty_surface_set_size(
-            surface,
-            UInt32(pixelWidth),
-            UInt32(pixelHeight)
-        )
-        reportGridResizeIfNeeded()
+            ghostty_surface_set_content_scale(surface, scale, scale)
+            ghostty_surface_set_size(
+                surface,
+                UInt32(pixelWidth),
+                UInt32(pixelHeight)
+            )
+            reportGridResizeIfNeeded()
+        }
 
         if !isPaused {
-            // CRITICAL: iOS has no CADisplayLink - explicitly trigger rendering
             ghostty_surface_refresh(surface)
             ghostty_surface_draw(surface)
+            markIOSurfaceLayersForDisplay()
         }
 
         if !didSignalReady {
@@ -627,7 +563,7 @@ class GhosttyTerminalView: UIView {
         let isVisible = (window != nil)
         isPaused = !isVisible
         if let surface = surface?.unsafeCValue {
-            ghostty_surface_set_occlusion(surface, !isVisible)
+            ghostty_surface_set_occlusion(surface, isVisible)
         }
 
         if isVisible {
@@ -635,12 +571,7 @@ class GhosttyTerminalView: UIView {
             sizeDidChange(frame.size)
             // Note: becomeFirstResponder is now handled by SSHTerminalWrapper.updateUIView
             // based on isActive flag to avoid keyboard showing when terminal is hidden
-            // Request render to start display link if needed (event-driven)
             requestRender()
-            startBlinkTimerIfNeeded()
-        } else {
-            stopDisplayLink()
-            stopBlinkTimer()
         }
     }
 
@@ -1495,16 +1426,13 @@ class GhosttyTerminalView: UIView {
         ghostty_surface_set_content_scale(surface, scale, scale)
         ghostty_surface_set_size(surface, UInt32(pixelWidth), UInt32(pixelHeight))
         if window != nil {
-            ghostty_surface_set_occlusion(surface, false)
+            ghostty_surface_set_occlusion(surface, true)
         }
 
-        // CRITICAL: iOS has no CADisplayLink - explicitly trigger rendering
         ghostty_surface_refresh(surface)
         ghostty_surface_draw(surface)
+        markIOSurfaceLayersForDisplay()
         requestRender()
-        if window != nil {
-            startBlinkTimerIfNeeded()
-        }
     }
 
     private func configureIOSurfaceLayers() {
@@ -1514,16 +1442,19 @@ class GhosttyTerminalView: UIView {
     private func configureIOSurfaceLayers(size: CGSize?) {
         let scale = self.contentScaleFactor
         guard let sublayers = layer.sublayers else { return }
-        let ioLayers = sublayers.filter { String(describing: type(of: $0)) == "IOSurfaceLayer" }
-        guard !ioLayers.isEmpty else { return }
         let targetBounds = size.map { CGRect(origin: .zero, size: $0) } ?? bounds
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for sublayer in ioLayers {
+        for sublayer in sublayers {
             sublayer.frame = targetBounds
             sublayer.contentsScale = scale
         }
         CATransaction.commit()
+    }
+
+    private func markIOSurfaceLayersForDisplay() {
+        layer.setNeedsDisplay()
+        layer.sublayers?.forEach { $0.setNeedsDisplay() }
     }
 
     private func updateContentScaleIfNeeded() {
@@ -1548,7 +1479,7 @@ class GhosttyTerminalView: UIView {
             ghostty_surface_feed_data(surface, ptr, buffer.count)
         }
 
-        ghosttyAppWrapper?.appTick()
+        scheduleCustomIORedraw()
         requestRender()
     }
 

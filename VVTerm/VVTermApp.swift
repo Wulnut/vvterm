@@ -62,7 +62,7 @@ struct VVTermApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(id: "main") {
+        WindowGroup("", id: "main") {
             let appLocale = AppLanguage(rawValue: appLanguage)?.locale ?? Locale.current
             AppLockContainer {
                 Group {
@@ -109,7 +109,6 @@ struct VVTermApp: App {
             }
         }
         #if os(macOS)
-        .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1100, height: 700)
         .commands {

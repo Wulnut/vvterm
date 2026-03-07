@@ -150,6 +150,14 @@ extension View {
     func proFeatureAlert(title: String, message: String, isPresented: Binding<Bool>) -> some View {
         modifier(ProFeatureAlert(title: title, message: message, isPresented: isPresented))
     }
+
+    func splitPaneProFeatureAlert(isPresented: Binding<Bool>) -> some View {
+        proFeatureAlert(
+            title: String(localized: "Split Panes"),
+            message: String(localized: "Upgrade to Pro to split terminal panes"),
+            isPresented: isPresented
+        )
+    }
 }
 
 // MARK: - Pro Badge

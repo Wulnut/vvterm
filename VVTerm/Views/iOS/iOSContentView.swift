@@ -991,6 +991,7 @@ struct iOSTerminalView: View {
             headerTabsBar
             sessionContent
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -1025,6 +1026,7 @@ struct iOSTerminalView: View {
             ServerStatsView(
                 server: server,
                 isVisible: true,
+                backgroundColor: terminalBackgroundColor,
                 sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) }
             )
         }
@@ -1036,15 +1038,17 @@ struct iOSTerminalView: View {
                 ServerStatsView(
                     server: server,
                     isVisible: true,
+                    backgroundColor: terminalBackgroundColor,
                     sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) }
                 )
                 .zIndex(1)
             }
 
-            ForEach(serverSessions) { session in
+            if selectedView == "terminal", let session = selectedSession ?? serverSessions.first {
                 sessionPage(session)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .transaction { transaction in
             transaction.animation = nil
         }
@@ -1147,7 +1151,6 @@ struct iOSTerminalView: View {
     private func sessionPage(_ session: ConnectionSession) -> some View {
         let server = serverManager.servers.first { $0.id == session.serverId }
         let viewSelection = sessionManager.selectedViewByServer[session.serverId] ?? "stats"
-        let isSelected = effectiveSelectedSessionId == session.id
         let terminalAlreadyExists = ConnectionSessionManager.shared.getTerminal(for: session.id) != nil
         let shouldShowTerminal = shouldShowTerminalBySession[session.id] ?? false
         let reconnectToken = reconnectTokenBySession[session.id] ?? session.id
@@ -1157,11 +1160,9 @@ struct iOSTerminalView: View {
                 TerminalContainerView(
                     session: session,
                     server: server,
-                    isActive: isSelected && viewSelection == "terminal"
+                    isActive: viewSelection == "terminal"
                 )
                 .id(reconnectToken)
-                .opacity(viewSelection == "terminal" ? 1 : 0)
-                .allowsHitTesting(viewSelection == "terminal")
             }
 
             if viewSelection == "terminal" && !shouldShowTerminal && !terminalAlreadyExists {
@@ -1170,31 +1171,20 @@ struct iOSTerminalView: View {
                     .scaleEffect(1.2)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            guard isSelected else { return }
             prepareTerminal(session: session, viewSelection: viewSelection, terminalAlreadyExists: terminalAlreadyExists)
             if viewSelection == "terminal" {
                 focusTerminal(for: session)
             }
         }
         .onChange(of: viewSelection) { newValue in
-            guard isSelected else { return }
             if newValue == "terminal" {
                 prepareTerminal(session: session, viewSelection: newValue, terminalAlreadyExists: terminalAlreadyExists)
                 focusTerminal(for: session)
             }
         }
-        .onChange(of: isSelected) { newValue in
-            guard newValue else { return }
-            prepareTerminal(session: session, viewSelection: viewSelection, terminalAlreadyExists: terminalAlreadyExists)
-            if viewSelection == "terminal" {
-                focusTerminal(for: session)
-            }
-        }
-        .opacity(isSelected ? 1 : 0)
-        .allowsHitTesting(isSelected)
-        .accessibilityHidden(!isSelected)
-        .overlay(terminalSwipeOverlay(isEnabled: isSelected && viewSelection == "terminal"))
+        .overlay(terminalSwipeOverlay(isEnabled: viewSelection == "terminal"))
     }
 
     private func prepareTerminal(session: ConnectionSession, viewSelection: String, terminalAlreadyExists: Bool) {
@@ -1204,9 +1194,7 @@ struct iOSTerminalView: View {
             return
         }
         if shouldShowTerminalBySession[session.id] == true { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            shouldShowTerminalBySession[session.id] = true
-        }
+        shouldShowTerminalBySession[session.id] = true
     }
 
     private func openNewTab() {
@@ -1312,13 +1300,7 @@ struct iOSTerminalView: View {
                 container.setNeedsLayout()
                 container.layoutIfNeeded()
 
-                let targetBounds: CGRect
-                if let terminalContainer = container as? TerminalContainerUIView {
-                    targetBounds = terminalContainer.availableBoundsForTerminal()
-                    terminalContainer.requestRefresh()
-                } else {
-                    targetBounds = container.bounds
-                }
+                let targetBounds = container.bounds
 
                 if targetBounds.width > 0, targetBounds.height > 0 {
                     if terminal.frame != targetBounds {

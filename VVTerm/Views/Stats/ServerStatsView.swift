@@ -5,11 +5,9 @@ import Charts
 
 #if os(iOS)
 private let cardBackground = Color(UIColor.secondarySystemBackground)
-private let screenBackground = Color(UIColor.systemBackground)
 #else
 // Use a visible card background that contrasts with the window background
 private let cardBackground = Color.primary.opacity(0.06)
-private let screenBackground = Color(NSColor.windowBackgroundColor)
 #endif
 
 // MARK: - Server Stats View
@@ -17,6 +15,7 @@ private let screenBackground = Color(NSColor.windowBackgroundColor)
 struct ServerStatsView: View {
     let server: Server
     let isVisible: Bool
+    let backgroundColor: Color
     var sharedClientProvider: () -> SSHClient? = { nil }
 
     @StateObject private var statsCollector = ServerStatsCollector()
@@ -96,7 +95,7 @@ struct ServerStatsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(screenBackground)
+        .background(backgroundColor)
         .task(id: makeTaskKey()) {
             // Start/stop collection based on visibility
             if isVisible {

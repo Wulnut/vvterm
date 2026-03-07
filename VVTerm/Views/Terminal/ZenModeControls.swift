@@ -75,7 +75,7 @@ struct ZenModeFloatingOverlay<Panel: View>: View {
             }
         } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 40, height: 40)
                     .foregroundStyle(.primary)
@@ -111,14 +111,19 @@ struct ZenModeFloatingOverlay<Panel: View>: View {
 
 struct ZenModePanelCard<Content: View>: View {
     let width: CGFloat
+    let backgroundColor: Color?
     let content: Content
+    private let cornerRadius: CGFloat = 22
 
-    init(width: CGFloat, @ViewBuilder content: () -> Content) {
+    init(width: CGFloat, backgroundColor: Color? = nil, @ViewBuilder content: () -> Content) {
         self.width = width
+        self.backgroundColor = backgroundColor
         self.content = content()
     }
 
     var body: some View {
+        let cardShape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 content
@@ -128,12 +133,27 @@ struct ZenModePanelCard<Content: View>: View {
         }
         .frame(width: width)
         .frame(maxHeight: 430)
-        .adaptiveGlassRect(cornerRadius: 22)
+        .background(panelBackground(for: cardShape))
+        .clipShape(cardShape)
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            cardShape
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.14), radius: 14, y: 10)
+    }
+
+    @ViewBuilder
+    private func panelBackground(for shape: RoundedRectangle) -> some View {
+        if let backgroundColor {
+            shape
+                .fill(backgroundColor)
+                .overlay(
+                    shape.fill(Color.white.opacity(0.02))
+                )
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+        }
     }
 }
 
@@ -297,121 +317,133 @@ struct MacOSZenModePanel: View {
     let onExitZen: () -> Void
 
     var body: some View {
-        ZenModePanelCard(width: width) {
-            ZenModeStatusLine(
-                title: serverName,
-                subtitle: statusText,
-                indicatorColor: statusColor
-            )
-
-            ZenModeSection("View") {
-                HStack(spacing: 8) {
-                    ZenModeChoiceChip(
-                        title: "Stats",
-                        systemImage: "chart.bar.xaxis",
-                        isSelected: selectedView == "stats"
-                    ) {
-                        selectedViewBinding.wrappedValue = "stats"
-                    }
-
-                    ZenModeChoiceChip(
-                        title: "Terminal",
-                        systemImage: "terminal",
-                        isSelected: selectedView == "terminal"
-                    ) {
-                        selectedViewBinding.wrappedValue = "terminal"
-                    }
-                }
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                panelContent
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .frame(width: width)
+        .frame(maxHeight: 430)
+        .background(.clear)
+    }
 
-            ZenModeSection("Tabs") {
-                HStack(spacing: 8) {
-                    ZenModeActionButton(title: "Previous Tab", systemImage: "chevron.left") {
-                        onPreviousTab()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .disabled(tabs.count <= 1)
+    @ViewBuilder
+    private var panelContent: some View {
+        ZenModeStatusLine(
+            title: serverName,
+            subtitle: statusText,
+            indicatorColor: statusColor
+        )
 
-                    ZenModeActionButton(title: "Next Tab", systemImage: "chevron.right") {
-                        onNextTab()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .disabled(tabs.count <= 1)
-                }
-
-                ZenModeActionButton(title: "New Tab", systemImage: "plus") {
-                    onNewTab()
-                }
-
-                if tabs.isEmpty {
-                    Text("No terminals open.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                } else {
-                    VStack(spacing: 8) {
-                        ForEach(tabs) { tab in
-                            macOSTabRow(tab)
-                        }
-                    }
-                }
-            }
-
-            if selectedView == "terminal" {
-                ZenModeSection("Pane") {
-                    ZenModeActionButton(
-                        title: "Split Right",
-                        systemImage: "rectangle.split.2x1"
-                    ) {
-                        onSplitRight()
-                    }
-                    .disabled(!canSplit)
-
-                    ZenModeActionButton(
-                        title: "Split Down",
-                        systemImage: "rectangle.split.1x2"
-                    ) {
-                        onSplitDown()
-                    }
-                    .disabled(!canSplit)
-
-                    ZenModeActionButton(
-                        title: "Close Pane",
-                        systemImage: "xmark.square",
-                        tint: .red
-                    ) {
-                        onClosePane()
-                    }
-                    .disabled(!canClosePane)
-                }
-            }
-
-            ZenModeSection("Window") {
-                ZenModeActionButton(
-                    title: isSidebarVisible ? "Hide Sidebar" : "Show Sidebar",
-                    systemImage: "sidebar.left"
+        ZenModeSection("View") {
+            HStack(spacing: 8) {
+                ZenModeChoiceChip(
+                    title: "Stats",
+                    systemImage: "chart.bar.xaxis",
+                    isSelected: selectedView == "stats"
                 ) {
-                    onToggleSidebar()
+                    selectedViewBinding.wrappedValue = "stats"
+                }
+
+                ZenModeChoiceChip(
+                    title: "Terminal",
+                    systemImage: "terminal",
+                    isSelected: selectedView == "terminal"
+                ) {
+                    selectedViewBinding.wrappedValue = "terminal"
                 }
             }
+        }
 
-            ZenModeSection("Session") {
+        ZenModeSection("Tabs") {
+            HStack(spacing: 8) {
+                ZenModeActionButton(title: "Previous Tab", systemImage: "chevron.left") {
+                    onPreviousTab()
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(tabs.count <= 1)
+
+                ZenModeActionButton(title: "Next Tab", systemImage: "chevron.right") {
+                    onNextTab()
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(tabs.count <= 1)
+            }
+
+            ZenModeActionButton(title: "New Tab", systemImage: "plus") {
+                onNewTab()
+            }
+
+            if tabs.isEmpty {
+                Text("No terminals open.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(tabs) { tab in
+                        macOSTabRow(tab)
+                    }
+                }
+            }
+        }
+
+        if selectedView == "terminal" {
+            ZenModeSection("Pane") {
                 ZenModeActionButton(
-                    title: "Disconnect",
-                    systemImage: "xmark.circle",
+                    title: "Split Right",
+                    systemImage: "rectangle.split.2x1"
+                ) {
+                    onSplitRight()
+                }
+                .disabled(!canSplit)
+
+                ZenModeActionButton(
+                    title: "Split Down",
+                    systemImage: "rectangle.split.1x2"
+                ) {
+                    onSplitDown()
+                }
+                .disabled(!canSplit)
+
+                ZenModeActionButton(
+                    title: "Close Pane",
+                    systemImage: "xmark.square",
                     tint: .red
                 ) {
-                    onDisconnect()
+                    onClosePane()
                 }
+                .disabled(!canClosePane)
             }
+        }
 
-            ZenModeSection("Zen") {
-                ZenModeActionButton(
-                    title: "Exit Zen Mode",
-                    systemImage: "arrow.down.right.and.arrow.up.left"
-                ) {
-                    onExitZen()
-                }
+        ZenModeSection("Window") {
+            ZenModeActionButton(
+                title: isSidebarVisible ? "Hide Sidebar" : "Show Sidebar",
+                systemImage: "sidebar.left"
+            ) {
+                onToggleSidebar()
+            }
+        }
+
+        ZenModeSection("Session") {
+            ZenModeActionButton(
+                title: "Disconnect",
+                systemImage: "xmark.circle",
+                tint: .red
+            ) {
+                onDisconnect()
+            }
+        }
+
+        ZenModeSection("Zen") {
+            ZenModeActionButton(
+                title: "Exit Zen Mode",
+                systemImage: "arrow.down.right.and.arrow.up.left"
+            ) {
+                onExitZen()
             }
         }
     }

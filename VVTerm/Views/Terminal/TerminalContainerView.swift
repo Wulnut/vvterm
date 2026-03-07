@@ -129,7 +129,6 @@ struct TerminalContainerView: View {
                             onVoiceTrigger: voiceTriggerHandler
                         )
                         .id(reconnectToken)
-                        .opacity(isReady || terminalAlreadyExists ? 1 : 0)
                         .onAppear {
                             // If terminal already exists, mark as ready immediately
                             if terminalAlreadyExists {
@@ -334,6 +333,7 @@ struct TerminalContainerView: View {
             }
             #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             loadCredentialsIfNeeded(force: true)
         }

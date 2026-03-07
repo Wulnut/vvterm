@@ -38,6 +38,7 @@ enum Ghostty {
             isValid = false
         }
     }
+
 }
 
 // MARK: - Ghostty.App
@@ -60,7 +61,6 @@ extension Ghostty {
 
         /// Track active surfaces for config propagation
         private var activeSurfaces: [Ghostty.SurfaceReference] = []
-
         #if os(macOS)
         /// Track last known appearance to detect changes
         private var lastKnownAppearance: NSAppearance.Name?
@@ -484,8 +484,6 @@ extension Ghostty {
         static func wakeup(_ userdata: UnsafeMutableRawPointer?) {
             guard let userdata = userdata else { return }
             let state = Unmanaged<App>.fromOpaque(userdata).takeUnretainedValue()
-
-            // Schedule tick on main thread
             DispatchQueue.main.async {
                 state.appTick()
             }
@@ -572,6 +570,16 @@ extension Ghostty {
                     userInfo: [Notification.Name.ScrollbarKey: scrollbar]
                 )
                 return true
+
+            case GHOSTTY_ACTION_MOUSE_SHAPE,
+                 GHOSTTY_ACTION_MOUSE_VISIBILITY,
+                 GHOSTTY_ACTION_MOUSE_OVER_LINK:
+                #if os(iOS)
+                return true
+                #else
+                Ghostty.logger.debug("Action received: \(action.tag.rawValue) on target: \(target.tag.rawValue)")
+                return false
+                #endif
 
             default:
                 // Log unhandled actions

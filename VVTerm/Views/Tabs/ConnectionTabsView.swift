@@ -22,10 +22,6 @@ struct ConnectionTerminalContainer: View {
 
     @EnvironmentObject var ghosttyApp: Ghostty.App
     @Environment(\.colorScheme) private var colorScheme
-    @ObservedObject private var storeManager = StoreManager.shared
-
-    /// Cached terminal background color from theme
-    @State private var terminalBackgroundColor: Color = .black
 
     /// Theme name from settings
     @AppStorage("terminalThemeName") private var terminalThemeName = "Aizen Dark"
@@ -37,7 +33,11 @@ struct ConnectionTerminalContainer: View {
 
     /// Tab limit alert
     @State private var showingTabLimitAlert = false
+    @State private var showingSplitPaneUpgradeAlert = false
     @State private var showingZenPanel = false
+    #if os(macOS)
+    @State private var zenWindowSafeAreaInsets = EdgeInsets()
+    #endif
 
     /// Selected view type - persisted per server
     private var selectedView: String {
@@ -106,13 +106,97 @@ struct ConnectionTerminalContainer: View {
         )
     }
 
-    var body: some View {
+    private var macOSZenTerminalContentInsets: EdgeInsets {
+        #if os(macOS)
+        return isZenModeEnabled ? zenWindowSafeAreaInsets : EdgeInsets()
+        #else
+        return EdgeInsets()
+        #endif
+    }
+
+    private var macOSNavigationTitle: String {
+        #if os(macOS)
+        return isZenModeEnabled ? server.name : ""
+        #else
+        return ""
+        #endif
+    }
+
+    private var liveTerminalBackgroundColor: Color {
+        ThemeColorParser.backgroundColor(for: effectiveThemeName)!
+    }
+
+    private var sharedBody: some View {
+        contentLayer
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(liveTerminalBackgroundColor)
+            .overlay(alignment: .top) {
+                #if os(macOS)
+                if !isZenModeEnabled {
+                    MacOSToolbarBackdrop(color: liveTerminalBackgroundColor)
+                }
+                #endif
+            }
+            .background {
+                #if os(macOS)
+                if isZenModeEnabled {
+                    MacOSZenWindowChromeBridge(contentInsets: $zenWindowSafeAreaInsets)
+                        .frame(width: 0, height: 0)
+                }
+                #endif
+            }
+            .macOSZenExpandedTopSafeArea(isZenModeEnabled && selectedView == "terminal")
+            .onAppear {
+                updateTerminalBackgroundColor()
+                // Select first tab if none selected
+                if selectedTabId == nil {
+                    selectedTabIdBinding.wrappedValue = serverTabs.first?.id
+                }
+            }
+            .onChange(of: terminalThemeName) { _ in
+                updateTerminalBackgroundColor()
+            }
+            .onChange(of: terminalThemeNameLight) { _ in
+                updateTerminalBackgroundColor()
+            }
+            .onChange(of: usePerAppearanceTheme) { _ in
+                updateTerminalBackgroundColor()
+            }
+            .onChange(of: colorScheme) { _ in
+                updateTerminalBackgroundColor()
+            }
+            .onChange(of: serverTabs.count) { _ in
+                // Auto-select if current selection is invalid
+                if let currentId = selectedTabId, !serverTabs.contains(where: { $0.id == currentId }) {
+                    selectedTabIdBinding.wrappedValue = serverTabs.first?.id
+                }
+            }
+            .onChange(of: isZenModeEnabled) { newValue in
+                if !newValue {
+                    showingZenPanel = false
+                }
+            }
+            .limitReachedAlert(.tabs, isPresented: $showingTabLimitAlert)
+            .splitPaneProFeatureAlert(isPresented: $showingSplitPaneUpgradeAlert)
+            .sheet(item: tmuxAttachPromptBinding) { prompt in
+                TmuxAttachPromptSheet(
+                    prompt: prompt,
+                    onConfirm: { selection in
+                        tabManager.resolveTmuxAttachPrompt(paneId: prompt.id, selection: selection)
+                    }
+                )
+            }
+    }
+
+    @ViewBuilder
+    private var contentLayer: some View {
         ZStack {
             // Stats view - always in hierarchy, visibility controlled by opacity
             // Pass isVisible to pause/resume collection when hidden
             ServerStatsView(
                 server: server,
                 isVisible: selectedView == "stats",
+                backgroundColor: liveTerminalBackgroundColor,
                 sharedClientProvider: { tabManager.sharedStatsClient(for: server.id) }
             )
                 .opacity(selectedView == "stats" ? 1 : 0)
@@ -129,6 +213,7 @@ struct ConnectionTerminalContainer: View {
                     tabManager: tabManager,
                     isSelected: isVisible
                 )
+                .padding(macOSZenTerminalContentInsets)
                 .opacity(isVisible ? 1 : 0)
                 .allowsHitTesting(isVisible)
                 .zIndex(isVisible ? 1 : 0)
@@ -139,6 +224,7 @@ struct ConnectionTerminalContainer: View {
                 TerminalEmptyStateView(server: server) {
                     openNewTab()
                 }
+                .padding(macOSZenTerminalContentInsets)
             }
             #else
             if selectedView == "terminal" && serverTabs.isEmpty {
@@ -148,73 +234,14 @@ struct ConnectionTerminalContainer: View {
             }
             #endif
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(selectedView == "terminal" ? terminalBackgroundColor : nil)
-        .overlay(alignment: .top) {
-            #if os(macOS)
-            if selectedView == "terminal" && !isZenModeEnabled {
-                MacOSToolbarBackdrop(color: terminalBackgroundColor)
-            }
-            #endif
-        }
-        .macOSZenExpandedTopSafeArea(isZenModeEnabled && selectedView == "terminal")
-        .onAppear {
-            updateTerminalBackgroundColor()
-            // Select first tab if none selected
-            if selectedTabId == nil {
-                selectedTabIdBinding.wrappedValue = serverTabs.first?.id
-            }
-        }
-        .onChange(of: terminalThemeName) { _ in
-            updateTerminalBackgroundColor()
-        }
-        .onChange(of: terminalThemeNameLight) { _ in
-            updateTerminalBackgroundColor()
-        }
-        .onChange(of: usePerAppearanceTheme) { _ in
-            updateTerminalBackgroundColor()
-        }
-        .onChange(of: colorScheme) { _ in
-            updateTerminalBackgroundColor()
-        }
-        .onChange(of: serverTabs.count) { _ in
-            // Auto-select if current selection is invalid
-            if let currentId = selectedTabId, !serverTabs.contains(where: { $0.id == currentId }) {
-                selectedTabIdBinding.wrappedValue = serverTabs.first?.id
-            }
-        }
-        .onChange(of: isZenModeEnabled) { newValue in
-            if !newValue {
-                showingZenPanel = false
-            }
-        }
+    }
+
+    var body: some View {
         #if os(macOS)
-        .focusedValue(\.openTerminalTab, handleNewTabCommand)
-        .toolbar {
-            if !isZenModeEnabled {
-                viewPickerToolbarItem
-                if selectedView == "terminal" && !serverTabs.isEmpty {
-                    tabsToolbarItem
-                }
-                toolbarSpacer
-                trailingToolbarItems
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            if isZenModeEnabled {
-                zenModeOverlay
-            }
-        }
+        macOSBody
+        #else
+        sharedBody
         #endif
-        .limitReachedAlert(.tabs, isPresented: $showingTabLimitAlert)
-        .sheet(item: tmuxAttachPromptBinding) { prompt in
-            TmuxAttachPromptSheet(
-                prompt: prompt,
-                onConfirm: { selection in
-                    tabManager.resolveTmuxAttachPrompt(paneId: prompt.id, selection: selection)
-                }
-            )
-        }
     }
 
     private func handleNewTabCommand() {
@@ -259,20 +286,9 @@ struct ConnectionTerminalContainer: View {
     private func updateTerminalBackgroundColor() {
         let themeName = effectiveThemeName
         Task.detached(priority: .utility) {
-            let resolved = ThemeColorParser.backgroundColor(for: themeName)
+            let resolved = ThemeColorParser.backgroundColor(for: themeName)!
             await MainActor.run {
-                if let color = resolved {
-                    terminalBackgroundColor = color
-                    UserDefaults.standard.set(color.toHex(), forKey: "terminalBackgroundColor")
-                } else {
-                    #if os(macOS)
-                    terminalBackgroundColor = Color(NSColor.windowBackgroundColor)
-                    #elseif os(iOS)
-                    terminalBackgroundColor = Color(UIColor.systemBackground)
-                    #else
-                    terminalBackgroundColor = .black
-                    #endif
-                }
+                UserDefaults.standard.set(resolved.toHex(), forKey: "terminalBackgroundColor")
             }
         }
     }
@@ -280,22 +296,71 @@ struct ConnectionTerminalContainer: View {
     // MARK: - Toolbar Items (macOS)
 
     #if os(macOS)
+    private var macOSBody: some View {
+        sharedBody
+            .navigationTitle(macOSNavigationTitle)
+            .focusedValue(\.openTerminalTab, handleNewTabCommand)
+            .toolbar {
+                if !isZenModeEnabled {
+                    viewPickerToolbarItem
+                    if selectedView == "terminal" && !serverTabs.isEmpty {
+                        tabsToolbarSpacer
+                        tabsToolbarItem
+                    }
+                    toolbarSpacer
+                    trailingToolbarItems
+                } else {
+                    ToolbarItem(placement: .primaryAction) {
+                        zenModePanelToolbarButton
+                    }
+                }
+            }
+            .alert(
+                disconnectAlertTitle,
+                isPresented: $showingDisconnectConfirmation,
+            ) {
+                Button("Cancel", role: .cancel) {}
+                Button(disconnectActionTitle, role: .destructive) {
+                    disconnectFromServer()
+                }
+                .keyboardShortcut(.defaultAction)
+            } message: {
+                Text(disconnectAlertMessage)
+            }
+    }
+
     @ToolbarContentBuilder
     private var viewPickerToolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
-            Picker("View", selection: selectedViewBinding) {
-                Label("Stats", systemImage: "chart.bar.xaxis")
-                    .tag("stats")
-                Label("Terminal", systemImage: "terminal")
-                    .tag("terminal")
+        ToolbarItem(placement: .navigation) {
+            viewPickerControl
+        }
+    }
+
+    private var viewPickerControl: some View {
+        Picker("View", selection: selectedViewBinding) {
+            Label("Stats", systemImage: "chart.bar.xaxis")
+                .tag("stats")
+            Label("Terminal", systemImage: "terminal")
+                .tag("terminal")
+        }
+        .pickerStyle(.segmented)
+    }
+
+    @ToolbarContentBuilder
+    private var tabsToolbarSpacer: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .navigation)
+        } else {
+            ToolbarItem(placement: .navigation) {
+                Color.clear
+                    .frame(width: 8, height: 1)
             }
-            .pickerStyle(.segmented)
         }
     }
 
     @ToolbarContentBuilder
     private var tabsToolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
+        ToolbarItem(placement: .navigation) {
             TerminalTabsScrollView(
                 tabs: serverTabs,
                 selectedTabId: selectedTabIdBinding,
@@ -319,17 +384,8 @@ struct ConnectionTerminalContainer: View {
             zenModeToolbarButton
         }
 
-        if #available(macOS 26.0, *) {
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        } else {
-            ToolbarItem(placement: .primaryAction) {
-                Color.clear
-                    .frame(width: 8, height: 1)
-            }
-        }
-
         ToolbarItem(placement: .primaryAction) {
-            connectionStatusToolbarGroup
+            disconnectToolbarButton
         }
     }
 
@@ -339,92 +395,35 @@ struct ConnectionTerminalContainer: View {
                 isZenModeEnabled = true
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("Zen")
-                    .font(.callout.weight(.medium))
-                    .lineLimit(1)
-            }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                )
+            Label("Zen", systemImage: "arrow.up.left.and.arrow.down.right")
+                .labelStyle(.titleAndIcon)
         }
-        .buttonStyle(.plain)
-        .fixedSize()
         .help(Text("Enter Zen Mode"))
     }
 
-    private var connectionStatusToolbarGroup: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(serverTabs.isEmpty ? Color.secondary : Color.green)
-                .frame(width: 8, height: 8)
-
-            Text(compactTabsStatusText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Divider()
-                .frame(height: 16)
-
-            Button {
-                showingDisconnectConfirmation = true
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.red)
-                    .frame(width: 18, height: 18)
-            }
-            .buttonStyle(.plain)
-            .help(Text("Disconnect from server"))
-            .alert(
-                disconnectAlertTitle,
-                isPresented: $showingDisconnectConfirmation,
-            ) {
-                Button("Cancel", role: .cancel) {}
-                Button(disconnectActionTitle, role: .destructive) {
-                    disconnectFromServer()
-                }
-                .keyboardShortcut(.defaultAction)
-            } message: {
-                Text(disconnectAlertMessage)
-            }
+    private var disconnectToolbarButton: some View {
+        Button {
+            showingDisconnectConfirmation = true
+        } label: {
+            Label("Disconnect", systemImage: "xmark")
+                .labelStyle(.iconOnly)
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.primary.opacity(0.04))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-        )
-        .fixedSize()
+        .help(Text("Disconnect from server"))
     }
 
-    private func disconnectFromServer() {
-        tabManager.closeAllTabs(for: server.id)
-        tabManager.connectedServerIds.remove(server.id)
-    }
-
-    private var zenModeOverlay: some View {
-        ZenModeFloatingOverlay(
-            isPanelPresented: $showingZenPanel,
-            indicatorColor: zenIndicatorColor
-        ) { panelWidth in
+    private var zenModePanelToolbarButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.84)) {
+                showingZenPanel.toggle()
+            }
+        } label: {
+            Label("Zen", systemImage: "slider.horizontal.3")
+                .labelStyle(.iconOnly)
+        }
+        .help(Text(showingZenPanel ? "Hide Zen controls" : "Show Zen controls"))
+        .popover(isPresented: $showingZenPanel, arrowEdge: .top) {
             MacOSZenModePanel(
-                width: panelWidth,
+                width: 360,
                 serverName: server.name,
                 statusText: tabsStatusText,
                 statusColor: zenIndicatorColor,
@@ -445,18 +444,16 @@ struct ConnectionTerminalContainer: View {
                     tabManager.closeTab(tab)
                 },
                 onSplitRight: {
-                    guard let selectedTab else { return }
-                    _ = tabManager.splitHorizontal(tab: selectedTab, paneId: selectedTab.focusedPaneId)
+                    splitFocusedPane(.horizontal)
                 },
                 onSplitDown: {
-                    guard let selectedTab else { return }
-                    _ = tabManager.splitVertical(tab: selectedTab, paneId: selectedTab.focusedPaneId)
+                    splitFocusedPane(.vertical)
                 },
                 onClosePane: {
                     guard let selectedTab else { return }
                     tabManager.closePane(tab: selectedTab, paneId: selectedTab.focusedPaneId)
                 },
-                canSplit: selectedTab != nil && storeManager.isPro,
+                canSplit: selectedTab != nil,
                 canClosePane: selectedTab != nil,
                 isSidebarVisible: isSidebarVisible,
                 onToggleSidebar: {
@@ -475,7 +472,27 @@ struct ConnectionTerminalContainer: View {
                 }
             )
         }
-        .ignoresSafeArea(.container, edges: .top)
+    }
+
+    private func disconnectFromServer() {
+        tabManager.closeAllTabs(for: server.id)
+        tabManager.connectedServerIds.remove(server.id)
+    }
+
+    private func splitFocusedPane(_ direction: TerminalSplitDirection) {
+        guard let selectedTab else { return }
+        guard StoreManager.shared.isPro else {
+            showingZenPanel = false
+            showingSplitPaneUpgradeAlert = true
+            return
+        }
+
+        switch direction {
+        case .horizontal:
+            _ = tabManager.splitHorizontal(tab: selectedTab, paneId: selectedTab.focusedPaneId)
+        case .vertical:
+            _ = tabManager.splitVertical(tab: selectedTab, paneId: selectedTab.focusedPaneId)
+        }
     }
     #endif
 }
@@ -496,6 +513,119 @@ private extension View {
 }
 
 #if os(macOS)
+private struct MacOSZenWindowChromeBridge: NSViewRepresentable {
+    @Binding var contentInsets: EdgeInsets
+
+    func makeNSView(context: Context) -> WindowObserverView {
+        WindowObserverView()
+    }
+
+    func updateNSView(_ nsView: WindowObserverView, context: Context) {
+        nsView.onWindowUpdate = { [contentInsets = _contentInsets] window in
+            guard let closeButton = window.standardWindowButton(.closeButton),
+                  let miniButton = window.standardWindowButton(.miniaturizeButton),
+                  let zoomButton = window.standardWindowButton(.zoomButton) else { return }
+
+            let buttons = [closeButton, miniButton, zoomButton]
+            buttons.forEach { button in
+                button.isHidden = false
+                button.alphaValue = 1
+                button.superview?.isHidden = false
+                button.superview?.alphaValue = 1
+            }
+
+            let safeArea = window.contentView?.safeAreaInsets
+                ?? NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+            let titlebarHeight = max(
+                window.frame.height - window.contentLayoutRect.height,
+                safeArea.top
+            )
+            let newInsets = EdgeInsets(
+                top: titlebarHeight,
+                leading: safeArea.left,
+                bottom: safeArea.bottom,
+                trailing: safeArea.right
+            )
+
+            let currentInsets = contentInsets.wrappedValue
+            let didChange =
+                abs(currentInsets.top - newInsets.top) > 0.5 ||
+                abs(currentInsets.leading - newInsets.leading) > 0.5 ||
+                abs(currentInsets.bottom - newInsets.bottom) > 0.5 ||
+                abs(currentInsets.trailing - newInsets.trailing) > 0.5
+
+            if didChange {
+                contentInsets.wrappedValue = newInsets
+            }
+        }
+        nsView.triggerUpdate()
+    }
+
+    static func dismantleNSView(_ nsView: WindowObserverView, coordinator: ()) {
+        nsView.removeObservers()
+    }
+
+    final class WindowObserverView: NSView {
+        var onWindowUpdate: ((NSWindow) -> Void)?
+        private var observers: [NSObjectProtocol] = []
+
+        override var intrinsicContentSize: NSSize {
+            .zero
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            installObservers()
+            triggerUpdate()
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            triggerUpdate()
+        }
+
+        override func layout() {
+            super.layout()
+            triggerUpdate()
+        }
+
+        func triggerUpdate() {
+            guard let window else { return }
+            DispatchQueue.main.async { [weak self, weak window] in
+                guard let self, let window else { return }
+                self.onWindowUpdate?(window)
+            }
+        }
+
+        func removeObservers() {
+            let center = NotificationCenter.default
+            observers.forEach(center.removeObserver)
+            observers.removeAll()
+        }
+
+        private func installObservers() {
+            removeObservers()
+            guard let window else { return }
+
+            let center = NotificationCenter.default
+            observers = [
+                NSWindow.didResizeNotification,
+                NSWindow.didEndLiveResizeNotification,
+                NSWindow.didMoveNotification,
+                NSWindow.didBecomeKeyNotification
+            ].map { name in
+                center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    self?.triggerUpdate()
+                }
+            }
+        }
+
+        deinit {
+            removeObservers()
+        }
+    }
+}
+
 private struct MacOSToolbarBackdrop: View {
     let color: Color
 
