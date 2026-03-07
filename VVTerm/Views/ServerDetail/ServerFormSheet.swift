@@ -146,6 +146,7 @@ struct ServerFormSheet: View {
     @State private var tmuxStartupBehavior: TmuxStartupBehavior = .vvtermManaged
 
     @State private var showingServerLimitAlert = false
+    @State private var showingCreateWorkspace = false
     @State private var showingAddKeySheet = false
     @State private var isSaving = false
     @State private var isLoadingCredentials = false
@@ -228,10 +229,6 @@ struct ServerFormSheet: View {
         return assignmentWorkspaces.first
     }
 
-    private var shouldShowWorkspacePicker: Bool {
-        assignmentWorkspaces.count > 1
-    }
-
     private var workspaceEnvironmentNotice: String? {
         guard let server,
               let selectedWorkspace,
@@ -252,6 +249,26 @@ struct ServerFormSheet: View {
             selectedWorkspace.name,
             resolvedEnvironment.displayName
         )
+    }
+
+    private var workspaceAvailabilityNotice: String? {
+        if let workspaceEnvironmentNotice {
+            return workspaceEnvironmentNotice
+        }
+
+        guard assignmentWorkspaces.count <= 1 else {
+            return nil
+        }
+
+        if serverManager.workspaces.count <= 1 {
+            if isEditing {
+                return String(localized: "No other workspaces yet. Create one to move this server.")
+            }
+
+            return String(localized: "No other workspaces yet. Create one to organize servers separately.")
+        }
+
+        return String(localized: "No other workspace is available for this server right now.")
     }
 
     private struct ConnectionTestSnapshot: Equatable {
@@ -422,6 +439,14 @@ struct ServerFormSheet: View {
                     loadStoredKey(entry)
                 })
             }
+            .sheet(isPresented: $showingCreateWorkspace) {
+                WorkspaceFormSheet(
+                    serverManager: serverManager,
+                    onSave: { workspace in
+                        selectedWorkspaceId = workspace.id
+                    }
+                )
+            }
             .sheet(isPresented: $showingLocalDiscoverySheet) {
                 LocalDeviceDiscoverySheet { discoveredHost in
                     applyPrefill(ServerFormPrefill(discoveredHost: discoveredHost))
@@ -494,8 +519,8 @@ struct ServerFormSheet: View {
 
     @ViewBuilder
     private var workspaceSection: some View {
-        if shouldShowWorkspacePicker {
-            Section {
+        Section {
+            if assignmentWorkspaces.count > 1 {
                 Picker("Workspace", selection: $selectedWorkspaceId) {
                     ForEach(assignmentWorkspaces) { workspace in
                         HStack(spacing: 8) {
@@ -513,15 +538,44 @@ struct ServerFormSheet: View {
                         .tag(Optional(workspace.id))
                     }
                 }
+            } else {
+                LabeledContent("Workspace") {
+                    if let selectedWorkspace {
+                        HStack(spacing: 8) {
+                            if serverManager.isWorkspaceLocked(selectedWorkspace) {
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Circle()
+                                    .fill(Color.fromHex(selectedWorkspace.colorHex))
+                                    .frame(width: 8, height: 8)
+                            }
 
-                if let workspaceEnvironmentNotice {
-                    Text(workspaceEnvironmentNotice)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                            Text(selectedWorkspace.name)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("No Workspace")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            } header: {
-                sectionHeader("Workspace")
             }
+
+            if let workspaceAvailabilityNotice {
+                Text(workspaceAvailabilityNotice)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if assignmentWorkspaces.count <= 1 {
+                Button {
+                    showingCreateWorkspace = true
+                } label: {
+                    Label("Create Workspace", systemImage: "folder.badge.plus")
+                }
+            }
+        } header: {
+            sectionHeader("Workspace")
         }
     }
 
@@ -1195,6 +1249,7 @@ struct MoveServerSheet: View {
     @State private var isMoving = false
     @State private var error: String?
     @State private var showingUpgrade = false
+    @State private var showingCreateWorkspace = false
 
     init(
         serverManager: ServerManager,
@@ -1239,6 +1294,18 @@ struct MoveServerSheet: View {
 
     private var moveButtonDisabled: Bool {
         isMoving || selectedDestination == nil
+    }
+
+    private var destinationAvailabilityNotice: String {
+        if serverManager.workspaces.count <= 1 {
+            if storeManager.isPro {
+                return String(localized: "No other workspaces yet. Create one to move this server.")
+            }
+
+            return String(localized: "No other workspaces yet. Create another workspace to move this server. Multiple workspaces are available on Pro.")
+        }
+
+        return String(localized: "No other workspace is available for this server right now.")
     }
 
     private var environmentNotice: String? {
@@ -1286,14 +1353,7 @@ struct MoveServerSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        if destinationWorkspaces.isEmpty {
-            unavailableContent
-                .sheet(isPresented: $showingUpgrade) {
-                    ProUpgradeSheet()
-                }
-        } else {
-            formContent
-        }
+        formContent
     }
 
     private var formContent: some View {
@@ -1309,34 +1369,46 @@ struct MoveServerSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Picker("Destination", selection: $selectedWorkspaceId) {
-                    ForEach(destinationWorkspaces) { workspace in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(Color.fromHex(workspace.colorHex))
-                                .frame(width: 8, height: 8)
-                            Text(workspace.name)
-                        }
-                        .tag(Optional(workspace.id))
-                    }
-                }
-
-                Picker("Environment", selection: $selectedEnvironment) {
-                    ForEach(selectedDestination?.environments ?? ServerEnvironment.builtInEnvironments) { env in
-                        HStack {
-                            Circle()
-                                .fill(env.color)
-                                .frame(width: 8, height: 8)
-                            Text(env.displayName)
-                        }
-                        .tag(env)
-                    }
-                }
-
-                if let environmentNotice {
-                    Text(environmentNotice)
+                if destinationWorkspaces.isEmpty {
+                    Text(destinationAvailabilityNotice)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Button {
+                        showingCreateWorkspace = true
+                    } label: {
+                        Label("Create Workspace", systemImage: "folder.badge.plus")
+                    }
+                } else {
+                    Picker("Destination", selection: $selectedWorkspaceId) {
+                        ForEach(destinationWorkspaces) { workspace in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.fromHex(workspace.colorHex))
+                                    .frame(width: 8, height: 8)
+                                Text(workspace.name)
+                            }
+                            .tag(Optional(workspace.id))
+                        }
+                    }
+
+                    Picker("Environment", selection: $selectedEnvironment) {
+                        ForEach(selectedDestination?.environments ?? ServerEnvironment.builtInEnvironments) { env in
+                            HStack {
+                                Circle()
+                                    .fill(env.color)
+                                    .frame(width: 8, height: 8)
+                                Text(env.displayName)
+                            }
+                            .tag(env)
+                        }
+                    }
+
+                    if let environmentNotice {
+                        Text(environmentNotice)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } header: {
                 sectionHeader("Move")
@@ -1356,6 +1428,14 @@ struct MoveServerSheet: View {
         }
         .onChange(of: selectedWorkspaceId) { _ in
             reconcileSelection()
+        }
+        .sheet(isPresented: $showingCreateWorkspace) {
+            WorkspaceFormSheet(
+                serverManager: serverManager,
+                onSave: { workspace in
+                    selectedWorkspaceId = workspace.id
+                }
+            )
         }
         .sheet(isPresented: $showingUpgrade) {
             ProUpgradeSheet()
@@ -1384,35 +1464,6 @@ struct MoveServerSheet: View {
             }
         }
         #endif
-    }
-
-    private var unavailableContent: some View {
-        VStack(spacing: 18) {
-            Spacer()
-
-            if storeManager.isPro {
-                Image(systemName: "folder")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-
-                Text("No destination workspace available")
-                    .font(.headline)
-
-                Text("Add another workspace before moving this server.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            } else {
-                ProFeatureLock(
-                    feature: String(localized: "Moving servers between workspaces"),
-                    description: String(localized: "Upgrade to Pro to move servers across multiple workspaces."),
-                    showUpgrade: $showingUpgrade
-                )
-            }
-
-            Spacer()
-        }
-        .padding(20)
     }
 
     #if os(macOS)

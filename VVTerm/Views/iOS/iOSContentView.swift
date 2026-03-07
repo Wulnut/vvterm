@@ -204,7 +204,7 @@ struct iOSServerListView: View {
                             server: server,
                             onTap: { onServerSelected(server) },
                             onEdit: { serverToEdit = server },
-                            onMove: serverManager.moveDestinations(for: server).isEmpty ? nil : { serverToMove = server },
+                            onMove: { serverToMove = server },
                             onLockedTap: { lockedServerAlert = server }
                         )
                     }

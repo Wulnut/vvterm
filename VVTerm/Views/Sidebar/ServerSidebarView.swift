@@ -160,7 +160,7 @@ struct ServerSidebarView: View {
                                 isSelected: selectedServer?.id == server.id,
                                 onSelect: { selectServer(server) },
                                 onEdit: { serverToEdit = $0 },
-                                onMove: serverManager.moveDestinations(for: server).isEmpty ? nil : { serverToMove = $0 },
+                                onMove: { serverToMove = $0 },
                                 onConnect: { connectToServer($0) },
                                 onLockedTap: { lockedServerAlert = server }
                             )
