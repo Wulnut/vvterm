@@ -186,7 +186,7 @@ class GhosttyTerminalView: NSView {
             CVDisplayLinkStop(link)
         }
         // Release the retained weak reference to prevent memory leak
-        displayLinkWeakRef?.release()
+        displayLinkCallbackContext?.release()
 
         // Surface cleanup happens via Surface's deinit
         // Note: Cannot access @MainActor properties in deinit
@@ -284,8 +284,8 @@ class GhosttyTerminalView: NSView {
         }
     }
 
-    /// Weak reference retained by display link - must be released when display link stops
-    private var displayLinkWeakRef: Unmanaged<Weak<GhosttyTerminalView>>?
+    /// Callback context retained by display link - must be released when display link stops
+    private var displayLinkCallbackContext: Unmanaged<DisplayLinkCallbackContext>?
 
     /// Setup CVDisplayLink for display-synchronized rendering (SSH mode only)
     /// Event-driven: starts on activity, stops after idle timeout to save CPU
@@ -295,14 +295,14 @@ class GhosttyTerminalView: NSView {
         guard let displayLink = link else { return }
 
         // Prevent capture of self in C callback by using a weak reference wrapper
-        let weakSelf = Weak(self)
-        let retainedRef = Unmanaged.passRetained(weakSelf)
-        displayLinkWeakRef = retainedRef
+        let callbackContext = DisplayLinkCallbackContext(view: self)
+        let retainedRef = Unmanaged.passRetained(callbackContext)
+        displayLinkCallbackContext = retainedRef
 
         CVDisplayLinkSetOutputCallback(displayLink, { _, _, _, _, _, userInfo -> CVReturn in
             guard let userInfo = userInfo else { return kCVReturnSuccess }
-            let weak = Unmanaged<Weak<GhosttyTerminalView>>.fromOpaque(userInfo).takeUnretainedValue()
-            guard let view = weak.value else { return kCVReturnSuccess }
+            let callbackContext = Unmanaged<DisplayLinkCallbackContext>.fromOpaque(userInfo).takeUnretainedValue()
+            guard let view = callbackContext.view else { return kCVReturnSuccess }
 
             DispatchQueue.main.async {
                 view.displayLinkTick()
@@ -386,8 +386,8 @@ class GhosttyTerminalView: NSView {
         displayLink = nil
 
         // Release the retained weak reference to prevent memory leak
-        displayLinkWeakRef?.release()
-        displayLinkWeakRef = nil
+        displayLinkCallbackContext?.release()
+        displayLinkCallbackContext = nil
     }
 
     // MARK: - NSView Overrides
@@ -730,10 +730,20 @@ extension GhosttyTerminalView: NSTextInputClient {
 // MARK: - Weak Reference Wrapper for CVDisplayLink callback
 
 /// Thread-safe weak reference wrapper for use in C callbacks
-private final class Weak<T: AnyObject>: @unchecked Sendable {
-    weak var value: T?
-    init(_ value: T) {
-        self.value = value
+private final class DisplayLinkCallbackContext: @unchecked Sendable {
+    private let lock = NSLock()
+    private let weakViewTable = NSHashTable<GhosttyTerminalView>.weakObjects()
+
+    init(view: GhosttyTerminalView) {
+        lock.lock()
+        weakViewTable.add(view)
+        lock.unlock()
+    }
+
+    var view: GhosttyTerminalView? {
+        lock.lock()
+        defer { lock.unlock() }
+        return weakViewTable.allObjects.first
     }
 }
 
