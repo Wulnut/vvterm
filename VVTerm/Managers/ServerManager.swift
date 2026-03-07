@@ -5,6 +5,56 @@ import os.log
 
 // MARK: - Server Manager
 
+enum ServerMoveSupport {
+    static func allowedDestinationIDs(
+        isPro: Bool,
+        sourceWorkspaceId: UUID,
+        workspacesInOrder: [Workspace],
+        unlockedWorkspaceIds: Set<UUID>
+    ) -> Set<UUID> {
+        let orderedIDs = workspacesInOrder.map(\.id)
+
+        if isPro {
+            return Set(orderedIDs.filter { $0 != sourceWorkspaceId })
+        }
+
+        let sourceIsUnlocked = unlockedWorkspaceIds.contains(sourceWorkspaceId)
+        if sourceIsUnlocked {
+            return Set(orderedIDs.filter { $0 != sourceWorkspaceId && unlockedWorkspaceIds.contains($0) })
+        }
+
+        return unlockedWorkspaceIds
+    }
+
+    static func resolveEnvironment(
+        currentEnvironment: ServerEnvironment,
+        preferredEnvironment: ServerEnvironment? = nil,
+        destination: Workspace
+    ) -> ServerEnvironment {
+        if let preferredEnvironment,
+           let matchedPreferred = destination.environment(withId: preferredEnvironment.id) {
+            return matchedPreferred
+        }
+
+        if let matchedCurrent = destination.environment(withId: currentEnvironment.id) {
+            return matchedCurrent
+        }
+
+        if let production = destination.environment(withId: ServerEnvironment.production.id) {
+            return production
+        }
+
+        return destination.environments.first ?? .production
+    }
+
+    static func requiresEnvironmentFallback(
+        currentEnvironment: ServerEnvironment,
+        destination: Workspace
+    ) -> Bool {
+        destination.environment(withId: currentEnvironment.id) == nil
+    }
+}
+
 @MainActor
 final class ServerManager: ObservableObject {
     static let shared = ServerManager()
@@ -712,6 +762,92 @@ final class ServerManager: ObservableObject {
         }
     }
 
+    func workspace(withId id: UUID?) -> Workspace? {
+        guard let id else { return nil }
+        return workspaces.first { $0.id == id }
+    }
+
+    func assignmentWorkspaces(for server: Server?) -> [Workspace] {
+        if StoreManager.shared.isPro {
+            return workspacesSortedByOrder
+        }
+
+        guard let server,
+              let currentWorkspace = workspace(withId: server.workspaceId) else {
+            return workspacesSortedByOrder.filter { unlockedWorkspaceIds.contains($0.id) }
+        }
+
+        let allowedDestinationIDs = moveDestinationIDs(for: server)
+        return workspacesSortedByOrder.filter {
+            $0.id == currentWorkspace.id || allowedDestinationIDs.contains($0.id)
+        }
+    }
+
+    func moveDestinations(for server: Server) -> [Workspace] {
+        let destinationIDs = moveDestinationIDs(for: server)
+        return workspacesSortedByOrder.filter { destinationIDs.contains($0.id) }
+    }
+
+    func resolvedEnvironment(
+        for server: Server,
+        destination: Workspace,
+        preferredEnvironment: ServerEnvironment? = nil
+    ) -> ServerEnvironment {
+        ServerMoveSupport.resolveEnvironment(
+            currentEnvironment: server.environment,
+            preferredEnvironment: preferredEnvironment,
+            destination: destination
+        )
+    }
+
+    func moveRequiresEnvironmentFallback(_ server: Server, destination: Workspace) -> Bool {
+        ServerMoveSupport.requiresEnvironmentFallback(
+            currentEnvironment: server.environment,
+            destination: destination
+        )
+    }
+
+    func canAssignServer(_ server: Server, to destination: Workspace) -> Bool {
+        if server.workspaceId == destination.id {
+            return true
+        }
+        return moveDestinationIDs(for: server).contains(destination.id)
+    }
+
+    func moveServer(
+        _ server: Server,
+        to destination: Workspace,
+        preferredEnvironment: ServerEnvironment? = nil
+    ) async throws -> Server {
+        guard let refreshedDestination = workspace(withId: destination.id) else {
+            throw VVTermError.moveNotAllowed(String(localized: "The destination workspace is no longer available."))
+        }
+
+        if let restriction = moveRestriction(for: server, destination: refreshedDestination) {
+            throw restriction
+        }
+
+        let sourceWorkspace = workspace(withId: server.workspaceId)
+        let resolvedEnvironment = resolvedEnvironment(
+            for: server,
+            destination: refreshedDestination,
+            preferredEnvironment: preferredEnvironment
+        )
+
+        var updatedServer = server
+        updatedServer.workspaceId = refreshedDestination.id
+        updatedServer.environment = resolvedEnvironment
+
+        try await updateServer(updatedServer)
+        try await updateWorkspaceSelectionMetadataAfterMove(
+            serverId: server.id,
+            from: sourceWorkspace,
+            to: refreshedDestination
+        )
+
+        return updatedServer
+    }
+
     // MARK: - Pro Limits
 
     var canAddServer: Bool {
@@ -782,6 +918,49 @@ final class ServerManager: ObservableObject {
     /// Whether user has any locked items after downgrade
     var hasLockedItems: Bool {
         lockedServersCount > 0 || lockedWorkspacesCount > 0
+    }
+
+    private func moveDestinationIDs(for server: Server) -> Set<UUID> {
+        ServerMoveSupport.allowedDestinationIDs(
+            isPro: StoreManager.shared.isPro,
+            sourceWorkspaceId: server.workspaceId,
+            workspacesInOrder: workspacesSortedByOrder,
+            unlockedWorkspaceIds: unlockedWorkspaceIds
+        )
+    }
+
+    private func moveRestriction(for server: Server, destination: Workspace) -> VVTermError? {
+        guard server.workspaceId != destination.id else { return nil }
+
+        if moveDestinationIDs(for: server).contains(destination.id) {
+            return nil
+        }
+
+        if !StoreManager.shared.isPro && isWorkspaceLocked(destination) {
+            return VVTermError.proRequired(String(localized: "Upgrade to Pro to move servers into locked workspaces"))
+        }
+
+        return VVTermError.moveNotAllowed(String(localized: "This server can't be moved to that workspace right now."))
+    }
+
+    private func updateWorkspaceSelectionMetadataAfterMove(
+        serverId: UUID,
+        from sourceWorkspace: Workspace?,
+        to destinationWorkspace: Workspace
+    ) async throws {
+        if let sourceWorkspace,
+           sourceWorkspace.id != destinationWorkspace.id,
+           sourceWorkspace.lastSelectedServerId == serverId {
+            var updatedSource = sourceWorkspace
+            updatedSource.lastSelectedServerId = nil
+            try await updateWorkspace(updatedSource)
+        }
+
+        if destinationWorkspace.lastSelectedServerId != serverId {
+            var updatedDestination = destinationWorkspace
+            updatedDestination.lastSelectedServerId = serverId
+            try await updateWorkspace(updatedDestination)
+        }
     }
 
     func createCustomEnvironment(name: String, color: String) throws -> ServerEnvironment {
@@ -862,6 +1041,7 @@ enum VVTermError: LocalizedError {
     case proRequired(String)
     case serverLocked(String)
     case workspaceLocked(String)
+    case moveNotAllowed(String)
     case connectionFailed(String)
     case authenticationFailed
     case timeout
@@ -873,6 +1053,8 @@ enum VVTermError: LocalizedError {
             return String(format: String(localized: "Server '%@' is locked"), serverName)
         case .workspaceLocked(let workspaceName):
             return String(format: String(localized: "Workspace '%@' is locked"), workspaceName)
+        case .moveNotAllowed(let message):
+            return message
         case .connectionFailed(let message):
             return String(format: String(localized: "Connection failed: %@"), message)
         case .authenticationFailed:

@@ -7,6 +7,7 @@ struct ServerRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onEdit: (Server) -> Void
+    var onMove: ((Server) -> Void)? = nil
     var onConnect: ((Server) -> Void)? = nil
     var onLockedTap: (() -> Void)? = nil
 
@@ -66,6 +67,9 @@ struct ServerRow: View {
                     } label: {
                         Label("Unlock with Pro", systemImage: "lock.open.fill")
                     }
+                    if let onMove {
+                        Button("Move") { onMove(server) }
+                    }
                     Button("Edit") { onEdit(server) }
                     Button("Remove", role: .destructive) {
                         Task { try? await ServerManager.shared.deleteServer(server) }
@@ -78,6 +82,9 @@ struct ServerRow: View {
                             tabManager.selectedViewByServer[server.id] = "stats"
                             tabManager.connectedServerIds.insert(server.id)
                         }
+                    }
+                    if let onMove {
+                        Button("Move") { onMove(server) }
                     }
                     Button("Edit") { onEdit(server) }
                     Divider()

@@ -23,6 +23,7 @@ struct ServerSidebarView: View {
     @State private var environmentToDelete: ServerEnvironment?
     @State private var searchText = ""
     @State private var serverToEdit: Server?
+    @State private var serverToMove: Server?
     @State private var lockedServerAlert: Server?
     @State private var addServerPrefill: ServerFormPrefill?
     @State private var queuedDiscoveryPrefill: ServerFormPrefill?
@@ -159,6 +160,7 @@ struct ServerSidebarView: View {
                                 isSelected: selectedServer?.id == server.id,
                                 onSelect: { selectServer(server) },
                                 onEdit: { serverToEdit = $0 },
+                                onMove: serverManager.moveDestinations(for: server).isEmpty ? nil : { serverToMove = $0 },
                                 onConnect: { connectToServer($0) },
                                 onLockedTap: { lockedServerAlert = server }
                             )
@@ -214,7 +216,10 @@ struct ServerSidebarView: View {
                 serverManager: serverManager,
                 workspace: selectedWorkspace,
                 server: server,
-                onSave: { _ in serverToEdit = nil }
+                onSave: { updatedServer in
+                    handleSavedServer(updatedServer, originalServer: server)
+                    serverToEdit = nil
+                }
             )
             #if os(macOS)
             .frame(
@@ -224,6 +229,26 @@ struct ServerSidebarView: View {
                 minHeight: 520,
                 idealHeight: 620,
                 maxHeight: 680
+            )
+            #endif
+        }
+        .sheet(item: $serverToMove) { server in
+            MoveServerSheet(
+                serverManager: serverManager,
+                server: server,
+                onMove: { updatedServer in
+                    handleSavedServer(updatedServer, originalServer: server)
+                    serverToMove = nil
+                }
+            )
+            #if os(macOS)
+            .frame(
+                minWidth: 520,
+                idealWidth: 560,
+                maxWidth: 620,
+                minHeight: 360,
+                idealHeight: 420,
+                maxHeight: 520
             )
             #endif
         }
@@ -600,6 +625,26 @@ struct ServerSidebarView: View {
             selectedServer = server
             tabManager.selectedViewByServer[server.id] = "stats"
             tabManager.connectedServerIds.insert(server.id)
+        }
+    }
+
+    private func handleSavedServer(_ server: Server, originalServer: Server) {
+        let movedAcrossWorkspaces = originalServer.workspaceId != server.workspaceId
+
+        if movedAcrossWorkspaces,
+           let destinationWorkspace = serverManager.workspace(withId: server.workspaceId) {
+            selectedWorkspace = destinationWorkspace
+            selectedServer = server
+            storedEnvironmentFilters = ""
+            return
+        }
+
+        if isEnvironmentFiltering && !selectedEnvironmentIds.contains(server.environment.id) {
+            storedEnvironmentFilters = ""
+        }
+
+        if selectedServer?.id == server.id {
+            selectedServer = server
         }
     }
 

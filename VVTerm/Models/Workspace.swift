@@ -43,6 +43,14 @@ struct Workspace: Identifiable, Codable, Hashable {
         Color.fromHex(colorHex)
     }
 
+    func environment(withId id: UUID) -> ServerEnvironment? {
+        environments.first { $0.id == id }
+    }
+
+    func containsEnvironment(_ candidate: ServerEnvironment) -> Bool {
+        environment(withId: candidate.id) != nil
+    }
+
     static let defaultColors: [String] = [
         "#007AFF", // Blue (default)
         "#AF52DE", // Purple

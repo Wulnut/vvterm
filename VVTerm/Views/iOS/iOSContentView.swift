@@ -150,6 +150,7 @@ struct iOSServerListView: View {
     @State private var environmentToDelete: ServerEnvironment?
     @State private var searchText = ""
     @State private var serverToEdit: Server?
+    @State private var serverToMove: Server?
     @State private var lockedServerAlert: Server?
     @State private var navigationBarAppearanceToken = UUID()
     @State private var showingCustomEnvironmentAlert = false
@@ -203,6 +204,7 @@ struct iOSServerListView: View {
                             server: server,
                             onTap: { onServerSelected(server) },
                             onEdit: { serverToEdit = server },
+                            onMove: serverManager.moveDestinations(for: server).isEmpty ? nil : { serverToMove = server },
                             onLockedTap: { lockedServerAlert = server }
                         )
                     }
@@ -367,7 +369,22 @@ struct iOSServerListView: View {
                     serverManager: serverManager,
                     workspace: selectedWorkspace,
                     server: server,
-                    onSave: { _ in serverToEdit = nil }
+                    onSave: { updatedServer in
+                        handleSavedServer(updatedServer, originalServer: server)
+                        serverToEdit = nil
+                    }
+                )
+            }
+        }
+        .sheet(item: $serverToMove) { server in
+            NavigationStack {
+                MoveServerSheet(
+                    serverManager: serverManager,
+                    server: server,
+                    onMove: { updatedServer in
+                        handleSavedServer(updatedServer, originalServer: server)
+                        serverToMove = nil
+                    }
                 )
             }
         }
@@ -454,6 +471,22 @@ struct iOSServerListView: View {
             if !isPresented {
                 addServerPrefill = nil
             }
+        }
+    }
+
+    private func handleSavedServer(_ server: Server, originalServer: Server) {
+        let movedAcrossWorkspaces = originalServer.workspaceId != server.workspaceId
+
+        if movedAcrossWorkspaces,
+           let destinationWorkspace = serverManager.workspace(withId: server.workspaceId) {
+            selectedWorkspace = destinationWorkspace
+            selectedEnvironment = nil
+            return
+        }
+
+        if let selectedEnvironment,
+           selectedEnvironment.id != server.environment.id {
+            self.selectedEnvironment = nil
         }
     }
 

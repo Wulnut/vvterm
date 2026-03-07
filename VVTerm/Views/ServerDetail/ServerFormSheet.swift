@@ -138,6 +138,7 @@ struct ServerFormSheet: View {
     @State private var cloudflareClientSecret: String = ""
     @State private var cloudflareTeamDomainOverride: String = ""
     @State private var showCloudflareOverrides: Bool = false
+    @State private var selectedWorkspaceId: UUID?
     @State private var selectedEnvironment: ServerEnvironment = .production
     @State private var notes: String = ""
     @State private var requiresBiometricUnlock: Bool = false
@@ -172,6 +173,9 @@ struct ServerFormSheet: View {
         self.server = server
         self.prefill = prefill
         self.onSave = onSave
+
+        let initialWorkspaceId = server?.workspaceId ?? workspace?.id
+        _selectedWorkspaceId = State(initialValue: initialWorkspaceId)
 
         if let server = server {
             _name = State(initialValue: server.name)
@@ -209,6 +213,45 @@ struct ServerFormSheet: View {
 
     private var isAtLimit: Bool {
         !isEditing && !serverManager.canAddServer
+    }
+
+    private var assignmentWorkspaces: [Workspace] {
+        serverManager.assignmentWorkspaces(for: server)
+    }
+
+    private var selectedWorkspace: Workspace? {
+        if let selectedWorkspaceId,
+           let matchingWorkspace = assignmentWorkspaces.first(where: { $0.id == selectedWorkspaceId }) {
+            return matchingWorkspace
+        }
+
+        return assignmentWorkspaces.first
+    }
+
+    private var shouldShowWorkspacePicker: Bool {
+        assignmentWorkspaces.count > 1
+    }
+
+    private var workspaceEnvironmentNotice: String? {
+        guard let server,
+              let selectedWorkspace,
+              selectedWorkspace.id != server.workspaceId,
+              serverManager.moveRequiresEnvironmentFallback(server, destination: selectedWorkspace) else {
+            return nil
+        }
+
+        let resolvedEnvironment = serverManager.resolvedEnvironment(
+            for: server,
+            destination: selectedWorkspace,
+            preferredEnvironment: selectedEnvironment
+        )
+
+        return String(
+            format: String(localized: "\"%@\" isn't available in %@. The server will use %@ there."),
+            server.environment.displayName,
+            selectedWorkspace.name,
+            resolvedEnvironment.displayName
+        )
     }
 
     private struct ConnectionTestSnapshot: Equatable {
@@ -280,6 +323,7 @@ struct ServerFormSheet: View {
         Form {
             limitSection
             serverSection
+            workspaceSection
             authSection
             connectionSection
             sessionSection
@@ -387,12 +431,17 @@ struct ServerFormSheet: View {
             .onAppear {
                 storedKeys = KeychainManager.shared.getStoredSSHKeys()
                 selectMatchingStoredKeyIfAvailable()
+                reconcileAssignmentWorkspace()
             }
             .onChange(of: host) { _ in resetConnectionTestState() }
             .onChange(of: port) { _ in resetConnectionTestState() }
             .onChange(of: username) { _ in resetConnectionTestState() }
             .onChange(of: transportSelection) { _ in resetConnectionTestState() }
             .onChange(of: selectedAuthMethod) { _ in resetConnectionTestState() }
+            .onChange(of: selectedWorkspaceId) { _ in
+                reconcileAssignmentWorkspace()
+                resetConnectionTestState()
+            }
             .onChange(of: password) { _ in resetConnectionTestState() }
             .onChange(of: sshKey) { _ in
                 if let programmaticSSHKeyValue,
@@ -442,6 +491,39 @@ struct ServerFormSheet: View {
         .padding(.vertical, 12)
     }
     #endif
+
+    @ViewBuilder
+    private var workspaceSection: some View {
+        if shouldShowWorkspacePicker {
+            Section {
+                Picker("Workspace", selection: $selectedWorkspaceId) {
+                    ForEach(assignmentWorkspaces) { workspace in
+                        HStack(spacing: 8) {
+                            if serverManager.isWorkspaceLocked(workspace) {
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Circle()
+                                    .fill(Color.fromHex(workspace.colorHex))
+                                    .frame(width: 8, height: 8)
+                            }
+
+                            Text(workspace.name)
+                        }
+                        .tag(Optional(workspace.id))
+                    }
+                }
+
+                if let workspaceEnvironmentNotice {
+                    Text(workspaceEnvironmentNotice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                sectionHeader("Workspace")
+            }
+        }
+    }
 
     @ViewBuilder
     private var limitSection: some View {
@@ -668,7 +750,7 @@ struct ServerFormSheet: View {
     private var environmentSection: some View {
         Section {
             Picker("Environment", selection: $selectedEnvironment) {
-                ForEach(workspace?.environments ?? ServerEnvironment.builtInEnvironments) { env in
+                ForEach(selectedWorkspace?.environments ?? ServerEnvironment.builtInEnvironments) { env in
                     HStack {
                         Circle()
                             .fill(env.color)
@@ -862,7 +944,7 @@ struct ServerFormSheet: View {
         let portNum = Int(port) ?? 22
         return Server(
             id: id,
-            workspaceId: workspace?.id ?? serverManager.workspaces.first?.id ?? UUID(),
+            workspaceId: selectedWorkspace?.id ?? assignmentWorkspaces.first?.id ?? serverManager.workspaces.first?.id ?? UUID(),
             environment: selectedEnvironment,
             name: name,
             host: host,
@@ -942,6 +1024,20 @@ struct ServerFormSheet: View {
             self.username = username
         }
         resetConnectionTestState()
+    }
+
+    private func reconcileAssignmentWorkspace() {
+        if selectedWorkspaceId == nil {
+            selectedWorkspaceId = assignmentWorkspaces.first?.id
+        }
+
+        guard let selectedWorkspace else { return }
+
+        selectedEnvironment = ServerMoveSupport.resolveEnvironment(
+            currentEnvironment: server?.environment ?? selectedEnvironment,
+            preferredEnvironment: selectedEnvironment,
+            destination: selectedWorkspace
+        )
     }
 
     private func runConnectionTest(force: Bool) async -> Bool {
@@ -1082,6 +1178,338 @@ struct ServerFormSheet: View {
                 }
             }
         }
+    }
+}
+
+struct MoveServerSheet: View {
+    @ObservedObject var serverManager: ServerManager
+    @ObservedObject private var storeManager = StoreManager.shared
+    let server: Server
+    let preferredDestination: Workspace?
+    let onMove: (Server) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedWorkspaceId: UUID?
+    @State private var selectedEnvironment: ServerEnvironment
+    @State private var isMoving = false
+    @State private var error: String?
+    @State private var showingUpgrade = false
+
+    init(
+        serverManager: ServerManager,
+        server: Server,
+        preferredDestination: Workspace? = nil,
+        onMove: @escaping (Server) -> Void
+    ) {
+        self.serverManager = serverManager
+        self.server = server
+        self.preferredDestination = preferredDestination
+        self.onMove = onMove
+        _selectedWorkspaceId = State(initialValue: preferredDestination?.id)
+        _selectedEnvironment = State(initialValue: server.environment)
+    }
+
+    private var currentWorkspace: Workspace? {
+        serverManager.workspace(withId: server.workspaceId)
+    }
+
+    private var destinationWorkspaces: [Workspace] {
+        let destinations = serverManager.moveDestinations(for: server)
+        guard let preferredDestination,
+              destinations.contains(where: { $0.id == preferredDestination.id }) else {
+            return destinations
+        }
+
+        return destinations.sorted { lhs, rhs in
+            if lhs.id == preferredDestination.id { return true }
+            if rhs.id == preferredDestination.id { return false }
+            return lhs.order < rhs.order
+        }
+    }
+
+    private var selectedDestination: Workspace? {
+        if let selectedWorkspaceId,
+           let matchingDestination = destinationWorkspaces.first(where: { $0.id == selectedWorkspaceId }) {
+            return matchingDestination
+        }
+
+        return destinationWorkspaces.first
+    }
+
+    private var moveButtonDisabled: Bool {
+        isMoving || selectedDestination == nil
+    }
+
+    private var environmentNotice: String? {
+        guard let selectedDestination,
+              serverManager.moveRequiresEnvironmentFallback(server, destination: selectedDestination) else {
+            return nil
+        }
+
+        let resolvedEnvironment = serverManager.resolvedEnvironment(
+            for: server,
+            destination: selectedDestination,
+            preferredEnvironment: selectedEnvironment
+        )
+
+        return String(
+            format: String(localized: "\"%@\" isn't available in %@. The server will use %@ there."),
+            server.environment.displayName,
+            selectedDestination.name,
+            resolvedEnvironment.displayName
+        )
+    }
+
+    var body: some View {
+        #if os(iOS)
+        content
+        #else
+        VStack(spacing: 0) {
+            DialogSheetHeader(
+                title: "Move Server",
+                onClose: { dismiss() },
+                isCloseDisabled: isMoving
+            )
+
+            Divider()
+
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            macActionRow
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if destinationWorkspaces.isEmpty {
+            unavailableContent
+                .sheet(isPresented: $showingUpgrade) {
+                    ProUpgradeSheet()
+                }
+        } else {
+            formContent
+        }
+    }
+
+    private var formContent: some View {
+        Form {
+            Section {
+                LabeledContent("Server") {
+                    Text(server.name)
+                        .foregroundStyle(.secondary)
+                }
+
+                LabeledContent("From") {
+                    Text(currentWorkspace?.name ?? String(localized: "Current Workspace"))
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker("Destination", selection: $selectedWorkspaceId) {
+                    ForEach(destinationWorkspaces) { workspace in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.fromHex(workspace.colorHex))
+                                .frame(width: 8, height: 8)
+                            Text(workspace.name)
+                        }
+                        .tag(Optional(workspace.id))
+                    }
+                }
+
+                Picker("Environment", selection: $selectedEnvironment) {
+                    ForEach(selectedDestination?.environments ?? ServerEnvironment.builtInEnvironments) { env in
+                        HStack {
+                            Circle()
+                                .fill(env.color)
+                                .frame(width: 8, height: 8)
+                            Text(env.displayName)
+                        }
+                        .tag(env)
+                    }
+                }
+
+                if let environmentNotice {
+                    Text(environmentNotice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                sectionHeader("Move")
+            }
+
+            if let error {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .interactiveDismissDisabled(isMoving)
+        .onAppear {
+            reconcileSelection()
+        }
+        .onChange(of: selectedWorkspaceId) { _ in
+            reconcileSelection()
+        }
+        .sheet(isPresented: $showingUpgrade) {
+            ProUpgradeSheet()
+        }
+        #if os(iOS)
+        .navigationTitle("Move Server")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+                    .disabled(isMoving)
+                    .tint(.secondary)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    moveServer()
+                } label: {
+                    if isMoving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Move")
+                    }
+                }
+                .disabled(moveButtonDisabled)
+            }
+        }
+        #endif
+    }
+
+    private var unavailableContent: some View {
+        VStack(spacing: 18) {
+            Spacer()
+
+            if storeManager.isPro {
+                Image(systemName: "folder")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+
+                Text("No destination workspace available")
+                    .font(.headline)
+
+                Text("Add another workspace before moving this server.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                ProFeatureLock(
+                    feature: String(localized: "Moving servers between workspaces"),
+                    description: String(localized: "Upgrade to Pro to move servers across multiple workspaces."),
+                    showUpgrade: $showingUpgrade
+                )
+            }
+
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    #if os(macOS)
+    private var macActionRow: some View {
+        HStack(spacing: 10) {
+            Spacer(minLength: 0)
+
+            Button("Cancel") {
+                dismiss()
+            }
+            .disabled(isMoving)
+
+            Button {
+                moveServer()
+            } label: {
+                if isMoving {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(String(localized: "Moving..."))
+                    }
+                } else {
+                    Text("Move")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(moveButtonDisabled)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+    #endif
+
+    private func reconcileSelection() {
+        let hasValidSelection = selectedWorkspaceId.map { selectedId in
+            destinationWorkspaces.contains(where: { $0.id == selectedId })
+        } ?? false
+
+        if !hasValidSelection {
+            selectedWorkspaceId = preferredDestination?.id ?? destinationWorkspaces.first?.id
+        }
+
+        guard let selectedDestination else { return }
+
+        selectedEnvironment = serverManager.resolvedEnvironment(
+            for: server,
+            destination: selectedDestination,
+            preferredEnvironment: selectedEnvironment
+        )
+    }
+
+    private func moveServer() {
+        guard let destination = selectedDestination else { return }
+
+        isMoving = true
+        error = nil
+
+        Task {
+            do {
+                let updatedServer = try await serverManager.moveServer(
+                    server,
+                    to: destination,
+                    preferredEnvironment: selectedEnvironment
+                )
+
+                await MainActor.run {
+                    isMoving = false
+                    onMove(updatedServer)
+                    dismiss()
+                }
+            } catch let error as VVTermError {
+                await MainActor.run {
+                    isMoving = false
+                    if case .proRequired = error {
+                        showingUpgrade = true
+                    } else {
+                        self.error = error.localizedDescription
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isMoving = false
+                    self.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
+        #if os(iOS)
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .textCase(nil)
+        #else
+        Text(title)
+        #endif
     }
 }
 

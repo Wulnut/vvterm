@@ -12,6 +12,7 @@ struct iOSServerRow: View {
     let server: Server
     let onTap: () -> Void
     let onEdit: () -> Void
+    var onMove: (() -> Void)? = nil
     var onLockedTap: (() -> Void)? = nil
 
     @ObservedObject private var serverManager = ServerManager.shared
@@ -70,6 +71,15 @@ struct iOSServerRow: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if let onMove {
+                Button {
+                    onMove()
+                } label: {
+                    Label("Move", systemImage: "folder")
+                }
+                .tint(.blue)
+            }
+
             Button {
                 onEdit()
             } label: {
@@ -98,6 +108,14 @@ struct iOSServerRow: View {
                     Label("Edit", systemImage: "pencil")
                 }
 
+                if let onMove {
+                    Button {
+                        onMove()
+                    } label: {
+                        Label("Move", systemImage: "folder")
+                    }
+                }
+
                 Button(role: .destructive) {
                     Task { try? await ServerManager.shared.deleteServer(server) }
                 } label: {
@@ -108,6 +126,14 @@ struct iOSServerRow: View {
                     onTap()
                 } label: {
                     Label("Connect", systemImage: "play.fill")
+                }
+
+                if let onMove {
+                    Button {
+                        onMove()
+                    } label: {
+                        Label("Move", systemImage: "folder")
+                    }
                 }
 
                 Button {
@@ -208,6 +234,7 @@ struct iOSWorkspacePickerView: View {
     @State private var showingCreateWorkspace = false
     @State private var workspaceToEdit: Workspace?
     @State private var workspaceToDelete: Workspace?
+    @State private var workspaceToManageServers: Workspace?
 
     var body: some View {
         List {
@@ -256,6 +283,15 @@ struct iOSWorkspacePickerView: View {
                 }
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     if isLocked {
+                        if serverManager.servers(in: workspace, environment: nil).count > 0 {
+                            Button {
+                                workspaceToManageServers = workspace
+                            } label: {
+                                Label("Manage Servers", systemImage: "server.rack")
+                            }
+                            .tint(.blue)
+                        }
+
                         Button {
                             lockedWorkspaceAlert = workspace
                         } label: {
@@ -273,6 +309,35 @@ struct iOSWorkspacePickerView: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     if !isLocked {
+                        Button(role: .destructive) {
+                            workspaceToDelete = workspace
+                        } label: {
+                            Label("Delete Workspace", systemImage: "trash")
+                        }
+                    }
+                }
+                .contextMenu {
+                    if isLocked {
+                        if serverManager.servers(in: workspace, environment: nil).count > 0 {
+                            Button {
+                                workspaceToManageServers = workspace
+                            } label: {
+                                Label("Manage Servers", systemImage: "server.rack")
+                            }
+                        }
+
+                        Button {
+                            lockedWorkspaceAlert = workspace
+                        } label: {
+                            Label("Unlock with Pro", systemImage: "lock.open.fill")
+                        }
+                    } else {
+                        Button {
+                            workspaceToEdit = workspace
+                        } label: {
+                            Label("Edit Workspace", systemImage: "pencil")
+                        }
+
                         Button(role: .destructive) {
                             workspaceToDelete = workspace
                         } label: {
@@ -319,6 +384,14 @@ struct iOSWorkspacePickerView: View {
                     }
                 }
             )
+        }
+        .sheet(item: $workspaceToManageServers) { workspace in
+            NavigationStack {
+                LockedWorkspaceServerManagementSheet(
+                    serverManager: serverManager,
+                    workspace: workspace
+                )
+            }
         }
         .lockedItemAlert(
             .workspace,

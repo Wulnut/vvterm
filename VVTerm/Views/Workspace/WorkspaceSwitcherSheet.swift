@@ -11,6 +11,7 @@ struct WorkspaceSwitcherSheet: View {
     @State private var showingCreateWorkspace = false
     @State private var workspaceToEdit: Workspace?
     @State private var workspaceToDelete: Workspace?
+    @State private var workspaceToManageServers: Workspace?
     @State private var lockedWorkspaceAlert: Workspace?
 
     var body: some View {
@@ -40,6 +41,9 @@ struct WorkspaceSwitcherSheet: View {
                             },
                             onLockedTap: {
                                 lockedWorkspaceAlert = workspace
+                            },
+                            onManageServers: {
+                                workspaceToManageServers = workspace
                             },
                             onDeleteRequest: {
                                 workspaceToDelete = workspace
@@ -88,6 +92,13 @@ struct WorkspaceSwitcherSheet: View {
                     }
                 }
             )
+        }
+        .sheet(item: $workspaceToManageServers) { workspace in
+            LockedWorkspaceServerManagementSheet(
+                serverManager: serverManager,
+                workspace: workspace
+            )
+            .frame(width: 560, height: 460)
         }
         .lockedItemAlert(
             .workspace,
@@ -141,6 +152,7 @@ struct WorkspaceSwitcherRow: View {
     let onSelect: () -> Void
     let onEdit: () -> Void
     var onLockedTap: (() -> Void)? = nil
+    var onManageServers: (() -> Void)? = nil
     let onDeleteRequest: () -> Void
 
     #if os(macOS)
@@ -203,6 +215,20 @@ struct WorkspaceSwitcherRow: View {
                     .buttonStyle(.plain)
                 }
             }
+
+            if isLocked,
+               serverCount > 0,
+               (isHovered || isSelected),
+               let onManageServers {
+                Button {
+                    onManageServers()
+                } label: {
+                    Image(systemName: "server.rack")
+                        .foregroundStyle(.secondary)
+                        .imageScale(.medium)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -227,6 +253,14 @@ struct WorkspaceSwitcherRow: View {
                 } label: {
                     Label("Unlock with Pro", systemImage: "lock.open.fill")
                 }
+
+                if serverCount > 0, let onManageServers {
+                    Button {
+                        onManageServers()
+                    } label: {
+                        Label("Manage Servers", systemImage: "server.rack")
+                    }
+                }
             } else {
                 Button {
                     onSelect()
@@ -248,6 +282,135 @@ struct WorkspaceSwitcherRow: View {
                     Label("Delete Workspace", systemImage: "trash")
                 }
             }
+        }
+    }
+}
+
+struct LockedWorkspaceServerManagementSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var serverManager: ServerManager
+    let workspace: Workspace
+
+    @State private var serverToMove: Server?
+
+    private var workspaceServers: [Server] {
+        serverManager.servers
+            .filter { $0.workspaceId == workspace.id }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        #if os(iOS)
+        content
+        #else
+        VStack(spacing: 0) {
+            DialogSheetHeader(title: "Manage Locked Workspace") {
+                dismiss()
+            }
+
+            Divider()
+
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        #endif
+    }
+
+    private var content: some View {
+        Group {
+            if workspaceServers.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: "tray")
+                        .font(.system(size: 30))
+                        .foregroundStyle(.tertiary)
+                    Text("No servers left in this workspace.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(20)
+            } else {
+                List {
+                    Section {
+                        ForEach(workspaceServers) { server in
+                            HStack(spacing: 12) {
+                                Image(systemName: "server.rack")
+                                    .foregroundStyle(.secondary)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(server.name)
+                                        .fontWeight(.medium)
+
+                                    Text(server.displayAddress)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(server.environment.color)
+                                        .frame(width: 8, height: 8)
+                                    Text(server.environment.displayShortName)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Button("Move") {
+                                    serverToMove = server
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    } header: {
+                        Text(workspace.name)
+                    } footer: {
+                        Text("Move servers into an unlocked workspace to keep them accessible on the free plan.")
+                    }
+                }
+                #if os(iOS)
+                .listStyle(.insetGrouped)
+                #else
+                .listStyle(.inset)
+                #endif
+            }
+        }
+        #if os(iOS)
+        .navigationTitle("Manage Locked Workspace")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
+        #endif
+        .sheet(item: $serverToMove) { server in
+            #if os(iOS)
+            NavigationStack {
+                MoveServerSheet(
+                    serverManager: serverManager,
+                    server: server,
+                    onMove: { _ in
+                        serverToMove = nil
+                    }
+                )
+            }
+            #else
+            MoveServerSheet(
+                serverManager: serverManager,
+                server: server,
+                onMove: { _ in
+                    serverToMove = nil
+                }
+            )
+            #endif
         }
     }
 }
