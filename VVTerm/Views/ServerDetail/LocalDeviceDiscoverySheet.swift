@@ -282,6 +282,7 @@ struct LocalDeviceDiscoverySheet: View {
 
 private struct DiscoveryHostRow: View {
     let host: DiscoveredSSHHost
+    @Environment(\.privacyModeEnabled) private var privacyModeEnabled
 
     var body: some View {
         HStack(spacing: 12) {
@@ -291,12 +292,12 @@ private struct DiscoveryHostRow: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(host.displayName)
+                Text(host.visibleDisplayName(privacyModeEnabled: privacyModeEnabled))
                     .font(.body)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Text(verbatim: "\(host.host):\(host.port)")
+                Text(host.visibleEndpoint(privacyModeEnabled: privacyModeEnabled))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -334,6 +335,7 @@ private struct DiscoveryHostSwitcherRow: View {
     let onUse: () -> Void
 
     @Environment(\.controlActiveState) private var controlActiveState
+    @Environment(\.privacyModeEnabled) private var privacyModeEnabled
 
     private var selectionFillColor: Color {
         let base = NSColor.unemphasizedSelectedContentBackgroundColor
@@ -353,13 +355,13 @@ private struct DiscoveryHostSwitcherRow: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(host.displayName)
+                Text(host.visibleDisplayName(privacyModeEnabled: privacyModeEnabled))
                     .font(.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(isSelected ? selectedTextColor : .primary)
                     .lineLimit(1)
 
-                Text(verbatim: "\(host.host):\(host.port)")
+                Text(host.visibleEndpoint(privacyModeEnabled: privacyModeEnabled))
                     .font(.caption)
                     .foregroundStyle(isSelected ? selectedTextColor.opacity(0.85) : .secondary)
                     .lineLimit(1)

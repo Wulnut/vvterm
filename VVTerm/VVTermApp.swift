@@ -33,6 +33,7 @@ struct VVTermApp: App {
 
     // App language
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.system.rawValue
+    @AppStorage(PrivacyModeSettings.enabledKey) private var privacyModeEnabled = false
 
     // Terminal settings to watch for changes
     @AppStorage("terminalFontName") private var terminalFontName = "JetBrainsMono Nerd Font"
@@ -98,6 +99,7 @@ struct VVTermApp: App {
                     #endif
                 }
                 .environment(\.locale, appLocale)
+                .environment(\.privacyModeEnabled, privacyModeEnabled)
                 .onAppear {
                     AppLanguage.applySelection(appLanguage)
                 }

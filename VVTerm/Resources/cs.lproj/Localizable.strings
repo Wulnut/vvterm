@@ -762,10 +762,12 @@
 "Require %@ to open this server" = "Vyžadovat %@ pro otevření tohoto serveru";
 "Require %@ to open VVTerm" = "Vyžadovat %@ pro otevření VVTerm";
 "Lock when app goes to background" = "Uzamknout při přechodu aplikace na pozadí";
+"Privacy Mode" = "Režim soukromí";
 "Re-auth grace period" = "Doba odkladu opětovného ověření";
 "Always" = "Vždy";
 "%lld seconds" = "%lld sekund";
 "Security" = "Zabezpečení";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "Režim soukromí skryje adresy serverů a uživatelská jména v rozhraní aplikace i ve chvíli, kdy je aplikace neaktivní.";
 "Biometric lock protects app and server access on this device." = "Biometrický zámek chrání přístup k aplikaci a serverům na tomto zařízení.";
 
 /* Local Discovery */

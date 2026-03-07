@@ -806,10 +806,12 @@
 "Require %@ to open this server" = "Yêu cầu %@ để mở máy chủ này";
 "Require %@ to open VVTerm" = "Yêu cầu %@ để mở VVTerm";
 "Lock when app goes to background" = "Khóa khi ứng dụng vào nền";
+"Privacy Mode" = "Chế độ riêng tư";
 "Re-auth grace period" = "Thời gian gia hạn xác thực lại";
 "Always" = "Luôn luôn";
 "%lld seconds" = "%lld giây";
 "Security" = "Bảo mật";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "Chế độ riêng tư sẽ ẩn địa chỉ máy chủ và tên người dùng trong giao diện ứng dụng và khi ứng dụng không hoạt động.";
 "Biometric lock protects app and server access on this device." = "Khóa sinh trắc học bảo vệ quyền truy cập ứng dụng và máy chủ trên thiết bị này.";
 
 /* Local Discovery */

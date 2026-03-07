@@ -15,6 +15,7 @@ struct iOSServerRow: View {
     var onLockedTap: (() -> Void)? = nil
 
     @ObservedObject private var serverManager = ServerManager.shared
+    @Environment(\.privacyModeEnabled) private var privacyModeEnabled
 
     private var isLocked: Bool {
         serverManager.isServerLocked(server)
@@ -49,7 +50,7 @@ struct iOSServerRow: View {
                         .fontWeight(.medium)
                         .foregroundStyle(isLocked ? .secondary : .primary)
 
-                    Text(verbatim: "\(server.username)@\(server.host):\(server.port)")
+                    Text(server.visibleAddress(privacyModeEnabled: privacyModeEnabled))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

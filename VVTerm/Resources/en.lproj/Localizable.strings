@@ -779,10 +779,12 @@
 "Require %@ to open this server" = "Require %@ to open this server";
 "Require %@ to open VVTerm" = "Require %@ to open VVTerm";
 "Lock when app goes to background" = "Lock when app goes to background";
+"Privacy Mode" = "Privacy Mode";
 "Re-auth grace period" = "Re-auth grace period";
 "Always" = "Always";
 "%lld seconds" = "%lld seconds";
 "Security" = "Security";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "Privacy mode hides server addresses and usernames in the app UI and when the app is inactive.";
 "Biometric lock protects app and server access on this device." = "Biometric lock protects app and server access on this device.";
 
 /* Local Discovery */

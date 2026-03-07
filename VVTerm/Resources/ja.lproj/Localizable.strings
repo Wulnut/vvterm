@@ -761,10 +761,12 @@
 "Require %@ to open this server" = "このサーバーを開くには%@が必要です";
 "Require %@ to open VVTerm" = "VVTermを開くには%@が必要です";
 "Lock when app goes to background" = "アプリがバックグラウンドに移行したらロックする";
+"Privacy Mode" = "プライバシーモード";
 "Re-auth grace period" = "再認証の猶予時間";
 "Always" = "常に";
 "%lld seconds" = "%lld秒";
 "Security" = "セキュリティ";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "プライバシーモードは、アプリのUI内およびアプリが非アクティブなときに、サーバーアドレスとユーザー名を隠します。";
 "Biometric lock protects app and server access on this device." = "生体認証ロックは、このデバイスでのアプリとサーバーへのアクセスを保護します。";
 
 /* Local Discovery */

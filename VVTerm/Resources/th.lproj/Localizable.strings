@@ -761,10 +761,12 @@
 "Require %@ to open this server" = "ต้องใช้ %@ เพื่อเปิดเซิร์ฟเวอร์นี้";
 "Require %@ to open VVTerm" = "ต้องใช้ %@ เพื่อเปิด VVTerm";
 "Lock when app goes to background" = "ล็อกเมื่อแอปไปทำงานเบื้องหลัง";
+"Privacy Mode" = "โหมดความเป็นส่วนตัว";
 "Re-auth grace period" = "ช่วงผ่อนผันการยืนยันตัวตนใหม่";
 "Always" = "เสมอ";
 "%lld seconds" = "%lld วินาที";
 "Security" = "ความปลอดภัย";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "โหมดความเป็นส่วนตัวจะซ่อนที่อยู่เซิร์ฟเวอร์และชื่อผู้ใช้ในส่วนติดต่อแอป และเมื่อแอปไม่ได้ใช้งาน";
 "Biometric lock protects app and server access on this device." = "การล็อกด้วยชีวมิติช่วยปกป้องการเข้าถึงแอปและเซิร์ฟเวอร์บนอุปกรณ์นี้";
 
 /* Local Discovery */

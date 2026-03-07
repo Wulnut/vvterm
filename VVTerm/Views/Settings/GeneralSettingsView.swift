@@ -267,6 +267,7 @@ struct AppearancePreviewCard: View {
 struct GeneralSettingsView: View {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.system.rawValue
+    @AppStorage(PrivacyModeSettings.enabledKey) private var privacyModeEnabled = false
     @StateObject private var appLockManager = AppLockManager.shared
 
     private let authGraceOptions = [0, 15, 30, 60, 120, 300]
@@ -294,6 +295,8 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Toggle("Privacy Mode", isOn: $privacyModeEnabled)
+
                 Toggle(
                     String(format: String(localized: "Require %@ to open VVTerm"), appLockManager.biometryDisplayName),
                     isOn: Binding(
@@ -338,9 +341,12 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("Security")
             } footer: {
-                Text("Biometric lock protects app and server access on this device.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Privacy mode hides server addresses and usernames in the app UI and when the app is inactive.")
+                    Text("Biometric lock protects app and server access on this device.")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

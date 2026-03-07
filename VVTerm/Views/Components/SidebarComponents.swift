@@ -12,6 +12,7 @@ struct ServerRow: View {
 
     @ObservedObject private var tabManager = TerminalTabManager.shared
     @ObservedObject private var serverManager = ServerManager.shared
+    @Environment(\.privacyModeEnabled) private var privacyModeEnabled
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
     #endif
@@ -108,7 +109,7 @@ struct ServerRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 5) {
-                    Text(server.host)
+                    Text(server.visibleHost(privacyModeEnabled: privacyModeEnabled))
                         .font(.caption2)
                         .foregroundStyle(Color.secondary.opacity(0.7))
                         .lineLimit(1)

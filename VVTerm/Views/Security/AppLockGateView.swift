@@ -3,6 +3,7 @@ import SwiftUI
 struct AppLockContainer<Content: View>: View {
     @StateObject private var appLockManager = AppLockManager.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(PrivacyModeSettings.enabledKey) private var privacyModeEnabled = false
 
     private let content: Content
 
@@ -11,7 +12,7 @@ struct AppLockContainer<Content: View>: View {
     }
 
     var body: some View {
-        let shouldObscureForInactiveScene = appLockManager.fullAppLockEnabled && scenePhase != .active
+        let shouldObscureForInactiveScene = scenePhase != .active && (appLockManager.fullAppLockEnabled || privacyModeEnabled)
         let shouldBlockContent = appLockManager.isAppLocked || shouldObscureForInactiveScene
 
         ZStack {

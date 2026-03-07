@@ -761,10 +761,12 @@
 "Require %@ to open this server" = "Требуется %@, чтобы открыть этот сервер";
 "Require %@ to open VVTerm" = "Требуется %@, чтобы открыть VVTerm";
 "Lock when app goes to background" = "Блокировать при переходе приложения в фон";
+"Privacy Mode" = "Режим приватности";
 "Re-auth grace period" = "Льготный период повторной аутентификации";
 "Always" = "Всегда";
 "%lld seconds" = "%lld секунд";
 "Security" = "Безопасность";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "Режим приватности скрывает адреса серверов и имена пользователей в интерфейсе приложения и когда приложение неактивно.";
 "Biometric lock protects app and server access on this device." = "Биометрическая блокировка защищает доступ к приложению и серверам на этом устройстве.";
 
 /* Local Discovery */

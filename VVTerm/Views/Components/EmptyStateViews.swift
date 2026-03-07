@@ -10,6 +10,7 @@ import SwiftUI
 struct ServerConnectEmptyState: View {
     let server: Server
     let onConnect: () -> Void
+    @Environment(\.privacyModeEnabled) private var privacyModeEnabled
 
     var body: some View {
         VStack(spacing: 24) {
@@ -25,7 +26,7 @@ struct ServerConnectEmptyState: View {
                         .font(.title2)
                         .fontWeight(.semibold)
 
-                    Text(verbatim: "\(server.username)@\(server.host):\(server.port)")
+                    Text(server.visibleAddress(privacyModeEnabled: privacyModeEnabled))
                         .font(.body)
                         .foregroundStyle(.secondary)
                 }

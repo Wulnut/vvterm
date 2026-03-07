@@ -741,10 +741,12 @@
 "Require %@ to open this server" = "打开此服务器需要%@";
 "Require %@ to open VVTerm" = "打开 VVTerm 需要%@";
 "Lock when app goes to background" = "应用进入后台时锁定";
+"Privacy Mode" = "隐私模式";
 "Re-auth grace period" = "重新认证宽限期";
 "Always" = "始终";
 "%lld seconds" = "%lld 秒";
 "Security" = "安全";
+"Privacy mode hides server addresses and usernames in the app UI and when the app is inactive." = "隐私模式会在应用界面中以及应用处于非活动状态时隐藏服务器地址和用户名。";
 "Biometric lock protects app and server access on this device." = "生物认证锁可保护此设备上的应用和服务器访问。";
 
 /* Local Discovery */
