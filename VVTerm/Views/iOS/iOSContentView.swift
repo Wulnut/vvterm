@@ -274,6 +274,7 @@ struct iOSServerListView: View {
                 }
             }
         }
+        .id(listRefreshIdentity)
         .overlay(alignment: .center) {
             if filteredServers.isEmpty {
                 NoServersEmptyState {
@@ -542,6 +543,14 @@ struct iOSServerListView: View {
         }
 
         return servers.sorted { $0.name < $1.name }
+    }
+
+    private var listRefreshIdentity: String {
+        let workspaceID = selectedWorkspace?.id.uuidString ?? "all-workspaces"
+        let environmentID = selectedEnvironment?.id.uuidString ?? "all-environments"
+        let serverIDs = filteredServers.map { $0.id.uuidString }.joined(separator: ",")
+        let activeConnectionIDs = activeConnections.map { $0.id.uuidString }.joined(separator: ",")
+        return [workspaceID, environmentID, serverIDs, activeConnectionIDs].joined(separator: "|")
     }
 
     private var serverCountsByEnvironment: [UUID: Int] {

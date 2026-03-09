@@ -6,6 +6,9 @@ import Foundation
 struct LinuxStatsCollector: PlatformStatsCollector {
     private let bytesPerKiB: UInt64 = 1_024
     private let bytesPerMiB: UInt64 = 1_048_576
+    private let bytesPerGiB: UInt64 = 1_073_741_824
+    private let bytesPerTiB: UInt64 = 1_099_511_627_776
+    private let bytesPerPiB: UInt64 = 1_125_899_906_842_624
 
     func getSystemInfo(client: SSHClient) async throws -> (hostname: String, osInfo: String, cpuCores: Int) {
         let cmd = "uname -srm; echo '---SEP---'; hostname; echo '---SEP---'; nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1"
@@ -571,23 +574,19 @@ struct LinuxStatsCollector: PlatformStatsCollector {
 
     private func parseDfVolumes(_ output: String) -> [VolumeInfo] {
         var volumes: [VolumeInfo] = []
+        let lines = output.components(separatedBy: .newlines)
+        let defaultUnit = lines.first.flatMap(dfUnitMultiplier)
 
-        for line in output.components(separatedBy: .newlines) {
+        for line in lines.dropFirst() {
             let parts = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
             guard parts.count >= 6 else { continue }
 
-            let totalStr = parts[1].replacingOccurrences(of: "M", with: "")
-            let usedStr = parts[2].replacingOccurrences(of: "M", with: "")
             let mountPoint = parts[5...].joined(separator: " ")
-
-            let total = UInt64(totalStr) ?? 0
-            let used = UInt64(usedStr) ?? 0
-
-            if total < 100 { continue }
             guard
-                let usedBytes = bytesFromMiB(used),
-                let totalBytes = bytesFromMiB(total)
+                let totalBytes = parseDfByteCount(parts[1], defaultUnit: defaultUnit),
+                let usedBytes = parseDfByteCount(parts[2], defaultUnit: defaultUnit)
             else { continue }
+            if totalBytes < 100 * bytesPerMiB { continue }
 
             volumes.append(VolumeInfo(
                 mountPoint: mountPoint,
@@ -634,6 +633,87 @@ struct LinuxStatsCollector: PlatformStatsCollector {
 
     private func bytesFromMiB(_ value: UInt64) -> UInt64? {
         let result = value.multipliedReportingOverflow(by: bytesPerMiB)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private func bytesFromGiB(_ value: UInt64) -> UInt64? {
+        let result = value.multipliedReportingOverflow(by: bytesPerGiB)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private func bytesFromTiB(_ value: UInt64) -> UInt64? {
+        let result = value.multipliedReportingOverflow(by: bytesPerTiB)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private func bytesFromPiB(_ value: UInt64) -> UInt64? {
+        let result = value.multipliedReportingOverflow(by: bytesPerPiB)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private func dfUnitMultiplier(_ header: String) -> UInt64? {
+        let normalized = header.lowercased()
+        if normalized.contains("1k-blocks") || normalized.contains("1024-blocks") {
+            return bytesPerKiB
+        }
+        if normalized.contains("512-blocks") {
+            return 512
+        }
+        if normalized.contains("1m-blocks") {
+            return bytesPerMiB
+        }
+        if normalized.contains("1g-blocks") {
+            return bytesPerGiB
+        }
+        return nil
+    }
+
+    private func parseDfByteCount(_ rawValue: String, defaultUnit: UInt64?) -> UInt64? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let numeric = UInt64(trimmed) {
+            guard let defaultUnit else { return numeric }
+            return multiplyBytes(numeric, by: defaultUnit)
+        }
+
+        let numberPart = trimmed.prefix { $0.isNumber || $0 == "." }
+        let suffixPart = trimmed.dropFirst(numberPart.count)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        guard !numberPart.isEmpty, let value = Double(numberPart), value.isFinite, value >= 0 else {
+            return nil
+        }
+
+        let multiplier: Double
+        switch suffixPart {
+        case "K", "KB", "KI", "KIB":
+            multiplier = Double(bytesPerKiB)
+        case "M", "MB", "MI", "MIB":
+            multiplier = Double(bytesPerMiB)
+        case "G", "GB", "GI", "GIB":
+            multiplier = Double(bytesPerGiB)
+        case "T", "TB", "TI", "TIB":
+            multiplier = Double(bytesPerTiB)
+        case "P", "PB", "PI", "PIB":
+            multiplier = Double(bytesPerPiB)
+        case "B":
+            multiplier = 1
+        case "":
+            guard let defaultUnit else { return nil }
+            multiplier = Double(defaultUnit)
+        default:
+            return nil
+        }
+
+        let bytes = value * multiplier
+        guard bytes.isFinite, bytes <= Double(UInt64.max) else { return nil }
+        return UInt64(bytes.rounded())
+    }
+
+    private func multiplyBytes(_ value: UInt64, by multiplier: UInt64) -> UInt64? {
+        let result = value.multipliedReportingOverflow(by: multiplier)
         return result.overflow ? nil : result.partialValue
     }
 }
