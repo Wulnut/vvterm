@@ -29,6 +29,7 @@ final class CloudKitManager: ObservableObject {
     private lazy var recordZone = CKRecordZone(zoneName: recordZoneName)
     private var recordZoneID: CKRecordZone.ID { recordZone.zoneID }
     private lazy var changeTokenKey = "com.vivy.vvterm.cloudkit.\(recordZoneName).token"
+    private var zoneReadyKey: String { "com.vivy.vvterm.cloudkit.\(recordZoneName).ready" }
 
     // Record types
     private enum RecordType {
@@ -61,11 +62,12 @@ final class CloudKitManager: ObservableObject {
     private var isSyncEnabled: Bool { SyncSettings.isEnabled }
     private var fetchChangesTask: Task<CloudKitChanges, Error>?
     private var ensureZoneTask: Task<Void, Error>?
-    private var zoneReady = false
+    private var zoneReady: Bool
 
     private init() {
         container = CKContainer(identifier: "iCloud.app.vivy.VivyTerm")
         database = container.privateCloudDatabase
+        zoneReady = UserDefaults.standard.bool(forKey: "com.vivy.vvterm.cloudkit.\(recordZoneName).ready")
         Task { await checkAccountStatus() }
     }
 
@@ -163,7 +165,7 @@ final class CloudKitManager: ObservableObject {
             return try await task.value
         }
 
-        let task = Task { try await self.fetchChangesFromCloudKit() }
+        let task = Task { try await self.withZoneRetry { try await self.fetchChangesFromCloudKit() } }
         fetchChangesTask = task
         defer { fetchChangesTask = nil }
 
@@ -280,7 +282,9 @@ final class CloudKitManager: ObservableObject {
         let record = server.toRecord(in: recordZoneID)
 
         do {
-            try await saveRecordWithUpsert(record)
+            try await withZoneRetry {
+                try await saveRecordWithUpsert(record)
+            }
             lastSyncDate = Date()
             logger.info("Saved server \(server.name) to CloudKit")
         } catch {
@@ -304,7 +308,9 @@ final class CloudKitManager: ObservableObject {
         let recordID = CKRecord.ID(recordName: server.id.uuidString, zoneID: recordZoneID)
 
         do {
-            _ = try await database.modifyRecords(saving: [], deleting: [recordID])
+            _ = try await withZoneRetry {
+                try await database.modifyRecords(saving: [], deleting: [recordID])
+            }
             lastSyncDate = Date()
             logger.info("Deleted server \(server.name) from CloudKit")
         } catch {
@@ -330,7 +336,9 @@ final class CloudKitManager: ObservableObject {
         let record = workspace.toRecord(in: recordZoneID)
 
         do {
-            try await saveRecordWithUpsert(record)
+            try await withZoneRetry {
+                try await saveRecordWithUpsert(record)
+            }
             lastSyncDate = Date()
             logger.info("Saved workspace \(workspace.name) to CloudKit")
         } catch {
@@ -354,7 +362,9 @@ final class CloudKitManager: ObservableObject {
         let recordID = CKRecord.ID(recordName: workspace.id.uuidString, zoneID: recordZoneID)
 
         do {
-            _ = try await database.modifyRecords(saving: [], deleting: [recordID])
+            _ = try await withZoneRetry {
+                try await database.modifyRecords(saving: [], deleting: [recordID])
+            }
             lastSyncDate = Date()
             logger.info("Deleted workspace \(workspace.name) from CloudKit")
         } catch {
@@ -373,7 +383,9 @@ final class CloudKitManager: ObservableObject {
         }
 
         try await ensureCustomZone()
-        let records = try await fetchQueryRecords(recordType: RecordType.terminalTheme, zoneID: recordZoneID)
+        let records = try await withZoneRetry {
+            try await fetchAllRecordsFromCloudKit(matchingRecordTypes: [RecordType.terminalTheme])
+        }
         return records.compactMap(TerminalTheme.init(from:))
     }
 
@@ -390,7 +402,9 @@ final class CloudKitManager: ObservableObject {
 
         let record = theme.toRecord(in: recordZoneID)
         do {
-            try await saveRecordWithUpsert(record)
+            try await withZoneRetry {
+                try await saveRecordWithUpsert(record)
+            }
             lastSyncDate = Date()
             logger.info("Saved terminal theme \(theme.name) to CloudKit")
         } catch {
@@ -410,7 +424,9 @@ final class CloudKitManager: ObservableObject {
         let recordID = CKRecord.ID(recordName: TerminalThemePreference.recordName, zoneID: recordZoneID)
 
         do {
-            let record = try await database.record(for: recordID)
+            let record = try await withZoneRetry {
+                try await database.record(for: recordID)
+            }
             return TerminalThemePreference(from: record)
         } catch let ckError as CKError where ckError.code == .unknownItem || ckError.code == .zoneNotFound {
             return nil
@@ -432,7 +448,9 @@ final class CloudKitManager: ObservableObject {
 
         let record = preference.toRecord(in: recordZoneID)
         do {
-            try await saveRecordWithUpsert(record)
+            try await withZoneRetry {
+                try await saveRecordWithUpsert(record)
+            }
             lastSyncDate = Date()
             logger.info("Saved terminal theme preference to CloudKit")
         } catch {
@@ -454,7 +472,9 @@ final class CloudKitManager: ObservableObject {
         let recordID = terminalAccessoryRecordID()
 
         do {
-            let record = try await database.record(for: recordID)
+            let record = try await withZoneRetry {
+                try await database.record(for: recordID)
+            }
             guard let profile = decodeTerminalAccessoryProfile(from: record) else {
                 logger.warning("Terminal accessory profile payload was invalid; ignoring remote value")
                 return nil
@@ -482,7 +502,9 @@ final class CloudKitManager: ObservableObject {
         let record = try makeTerminalAccessoryRecord(from: profile.normalized(), recordID: recordID)
 
         do {
-            try await saveRecordWithUpsert(record)
+            try await withZoneRetry {
+                try await saveRecordWithUpsert(record)
+            }
             lastSyncDate = Date()
             logger.info("Saved terminal accessory profile to CloudKit")
         } catch {
@@ -510,7 +532,9 @@ final class CloudKitManager: ObservableObject {
         var mergedProfile = normalizedLocal
 
         do {
-            let remoteRecord = try await database.record(for: recordID)
+            let remoteRecord = try await withZoneRetry {
+                try await database.record(for: recordID)
+            }
             baseRecord = remoteRecord
             if let remoteProfile = decodeTerminalAccessoryProfile(from: remoteRecord) {
                 let normalizedRemote = remoteProfile.normalized()
@@ -538,7 +562,9 @@ final class CloudKitManager: ObservableObject {
             )
 
             do {
-                try await saveRecord(candidateRecord, savePolicy: .ifServerRecordUnchanged)
+                try await withZoneRetry {
+                    try await saveRecord(candidateRecord, savePolicy: .ifServerRecordUnchanged)
+                }
                 lastSyncDate = Date()
                 return mergedProfile
             } catch {
@@ -636,7 +662,9 @@ final class CloudKitManager: ObservableObject {
         return ckError.code == .changeTokenExpired
     }
 
-    private func fetchAllRecordsFromCloudKit() async throws -> [CKRecord] {
+    private func fetchAllRecordsFromCloudKit(
+        matchingRecordTypes recordTypes: Set<String>? = nil
+    ) async throws -> [CKRecord] {
         try await ensureCustomZone()
         let zoneID = recordZoneID
         var token: CKServerChangeToken?
@@ -645,53 +673,16 @@ final class CloudKitManager: ObservableObject {
 
         while moreComing {
             let batch = try await fetchZoneChanges(zoneID: zoneID, previousToken: token)
-            records.append(contentsOf: batch.records)
+            if let recordTypes {
+                records.append(contentsOf: batch.records.filter { recordTypes.contains($0.recordType) })
+            } else {
+                records.append(contentsOf: batch.records)
+            }
             token = batch.serverChangeToken
             moreComing = batch.moreComing
         }
 
         return records
-    }
-
-    private func fetchQueryRecords(recordType: String, zoneID: CKRecordZone.ID) async throws -> [CKRecord] {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CKRecord], Error>) in
-            var records: [CKRecord] = []
-
-            func runQuery(cursor: CKQueryOperation.Cursor?) {
-                let operation: CKQueryOperation
-                if let cursor {
-                    operation = CKQueryOperation(cursor: cursor)
-                } else {
-                    let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-                    operation = CKQueryOperation(query: query)
-                    operation.zoneID = zoneID
-                }
-
-                operation.qualityOfService = .userInitiated
-                operation.recordMatchedBlock = { _, result in
-                    if case .success(let record) = result {
-                        records.append(record)
-                    }
-                }
-
-                operation.queryResultBlock = { result in
-                    switch result {
-                    case .success(let cursor):
-                        if let cursor {
-                            runQuery(cursor: cursor)
-                        } else {
-                            continuation.resume(returning: records)
-                        }
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
-                }
-
-                self.database.add(operation)
-            }
-
-            runQuery(cursor: nil)
-        }
     }
 
     private func fetchZoneChanges(
@@ -901,7 +892,9 @@ final class CloudKitManager: ObservableObject {
         syncStatus = .syncing
         defer { syncStatus = .idle }
 
-        let records = try await fetchAllRecordsFromCloudKit()
+        let records = try await withZoneRetry {
+            try await fetchAllRecordsFromCloudKit()
+        }
         let recordIDs = records
             .filter {
                 $0.recordType == RecordType.server ||
@@ -977,7 +970,6 @@ final class CloudKitManager: ObservableObject {
         ensureZoneTask = task
         defer { ensureZoneTask = nil }
         try await task.value
-        zoneReady = true
     }
 
     private func createZoneIfNeeded() async throws {
@@ -985,10 +977,12 @@ final class CloudKitManager: ObservableObject {
         if let result = results[recordZoneID] {
             switch result {
             case .success:
+                setZoneReady(true)
                 return
             case .failure(let error):
                 if isZoneNotFound(error) {
                     _ = try await database.modifyRecordZones(saving: [recordZone], deleting: [])
+                    setZoneReady(true)
                     return
                 }
                 throw error
@@ -996,6 +990,27 @@ final class CloudKitManager: ObservableObject {
         }
 
         _ = try await database.modifyRecordZones(saving: [recordZone], deleting: [])
+        setZoneReady(true)
+    }
+
+    private func setZoneReady(_ ready: Bool) {
+        zoneReady = ready
+        UserDefaults.standard.set(ready, forKey: zoneReadyKey)
+    }
+
+    private func withZoneRetry<T>(_ operation: () async throws -> T) async throws -> T {
+        do {
+            return try await operation()
+        } catch {
+            guard isZoneNotFound(error) else {
+                throw error
+            }
+
+            logger.warning("CloudKit zone was missing during operation; recreating and retrying once")
+            setZoneReady(false)
+            try await ensureCustomZone()
+            return try await operation()
+        }
     }
 
     private func isZoneNotFound(_ error: Error) -> Bool {
