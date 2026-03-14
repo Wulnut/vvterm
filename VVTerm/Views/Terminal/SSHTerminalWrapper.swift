@@ -171,11 +171,6 @@ extension SSHTerminalCoordinator {
         // Cancel in-flight SSH work but keep the terminal surface for reuse
         shellTask?.cancel()
         shellTask = nil
-        if let shellId {
-            Task.detached(priority: .high) { [sshClient, shellId] in
-                await sshClient.closeShell(shellId)
-            }
-        }
         self.shellId = nil
     }
 
@@ -187,13 +182,13 @@ extension SSHTerminalCoordinator {
 
         if let existingShellId = ConnectionSessionManager.shared.shellId(for: sessionId) {
             shellId = existingShellId
-            ConnectionSessionManager.shared.updateSessionState(sessionId, to: .connected)
+            deferSessionStateUpdate(.connected)
             logger.debug("Reusing existing shell for session \(self.sessionId)")
             return
         }
 
         if shellId != nil {
-            ConnectionSessionManager.shared.updateSessionState(sessionId, to: .connected)
+            deferSessionStateUpdate(.connected)
             logger.debug("Shell already active for session \(self.sessionId)")
             return
         }
@@ -203,7 +198,7 @@ extension SSHTerminalCoordinator {
             client: sshClient
         ) else {
             if ConnectionSessionManager.shared.shellId(for: sessionId) != nil {
-                ConnectionSessionManager.shared.updateSessionState(sessionId, to: .connected)
+                deferSessionStateUpdate(.connected)
             }
             logger.debug("Shell start already in progress for session \(self.sessionId)")
             return
@@ -311,6 +306,12 @@ extension SSHTerminalCoordinator {
                     }
                 }
             )
+        }
+    }
+
+    private func deferSessionStateUpdate(_ state: ConnectionState) {
+        DispatchQueue.main.async { [self] in
+            ConnectionSessionManager.shared.updateSessionState(sessionId, to: state)
         }
     }
 
@@ -573,6 +574,7 @@ struct SSHTerminalWrapper: View {
     let server: Server
     let credentials: ServerCredentials
     var isActive: Bool = true
+    var shouldPreserveKeyboardDuringReconnect: Bool = false
     let onProcessExit: () -> Void
     let onReady: () -> Void
     var onVoiceTrigger: (() -> Void)? = nil
@@ -585,6 +587,7 @@ struct SSHTerminalWrapper: View {
                 credentials: credentials,
                 size: geo.size,
                 isActive: isActive,
+                shouldPreserveKeyboardDuringReconnect: shouldPreserveKeyboardDuringReconnect,
                 onProcessExit: onProcessExit,
                 onReady: onReady,
                 onVoiceTrigger: onVoiceTrigger
@@ -600,11 +603,13 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
     let credentials: ServerCredentials
     let size: CGSize
     var isActive: Bool = true
+    var shouldPreserveKeyboardDuringReconnect: Bool = false
     let onProcessExit: () -> Void
     let onReady: () -> Void
     var onVoiceTrigger: (() -> Void)? = nil
 
     @EnvironmentObject var ghosttyApp: Ghostty.App
+    @Environment(\.scenePhase) private var scenePhase
 
     func makeCoordinator() -> Coordinator {
         // Use a dedicated SSH client per tab/session to avoid channel contention
@@ -621,14 +626,17 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         let coordinator = context.coordinator
 
         // Check if terminal already exists for this session (reuse to save memory)
-        if let existingTerminal = ConnectionSessionManager.shared.getTerminal(for: session.id) {
+        if let existingTerminal = ConnectionSessionManager.shared.peekTerminal(for: session.id) {
+            ConnectionSessionManager.shared.markTerminalUsed(for: session.id)
             coordinator.terminalView = existingTerminal
             coordinator.isTerminalReady = true
             coordinator.preserveSession = true
             existingTerminal.onVoiceButtonTapped = onVoiceTrigger
             existingTerminal.onProcessExit = onProcessExit
             existingTerminal.onPwdChange = { [sessionId = session.id] rawDirectory in
-                ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
+                DispatchQueue.main.async {
+                    ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
+                }
             }
 
             // Route through coordinator to preserve write ordering and transport behavior.
@@ -654,10 +662,13 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
                 existingTerminal.sizeDidChange(size)
             }
 
-            onReady()
-            if ConnectionSessionManager.shared.shellId(for: session) == nil,
-               !ConnectionSessionManager.shared.isSuspendingForBackground {
-                coordinator.startSSHConnection(terminal: existingTerminal)
+            DispatchQueue.main.async {
+                onReady()
+                if ConnectionSessionManager.shared.shellId(for: session) == nil,
+                   UIApplication.shared.applicationState == .active,
+                   !ConnectionSessionManager.shared.isSuspendingForBackground {
+                    coordinator.startSSHConnection(terminal: existingTerminal)
+                }
             }
             return existingTerminal
         }
@@ -674,16 +685,21 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
 
         terminalView.onReady = { [weak coordinator, weak terminalView] in
             coordinator?.isTerminalReady = true
-            onReady()
-            if let terminalView = terminalView,
-               !ConnectionSessionManager.shared.isSuspendingForBackground {
-                coordinator?.startSSHConnection(terminal: terminalView)
+            DispatchQueue.main.async {
+                onReady()
+                if let terminalView = terminalView,
+                   UIApplication.shared.applicationState == .active,
+                   !ConnectionSessionManager.shared.isSuspendingForBackground {
+                    coordinator?.startSSHConnection(terminal: terminalView)
+                }
             }
         }
         terminalView.onProcessExit = onProcessExit
         terminalView.onVoiceButtonTapped = onVoiceTrigger
         terminalView.onPwdChange = { [sessionId = session.id] rawDirectory in
-            ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
+            DispatchQueue.main.async {
+                ConnectionSessionManager.shared.updateSessionWorkingDirectory(sessionId, rawDirectory: rawDirectory)
+            }
         }
 
         coordinator.terminalView = terminalView
@@ -737,6 +753,7 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         }
 
         let wasActive = context.coordinator.wasActive
+        let shouldRenderTerminal = isActive && scenePhase == .active
 
         terminalView.onVoiceButtonTapped = onVoiceTrigger
         if size.width > 0, size.height > 0, size != context.coordinator.lastReportedSize {
@@ -745,17 +762,25 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         }
 
         if context.coordinator.isTerminalReady {
-            if isActive && !wasActive {
+            if shouldRenderTerminal && !wasActive {
                 terminalView.resumeRendering()
                 terminalView.forceRefresh()
-            } else if !isActive && wasActive {
+            } else if !shouldRenderTerminal && wasActive {
                 terminalView.pauseRendering()
             }
         }
-        context.coordinator.wasActive = isActive
+        context.coordinator.wasActive = shouldRenderTerminal
 
         let autoReconnectEnabled = (UserDefaults.standard.object(forKey: "sshAutoReconnect") as? Bool) ?? true
         let shellMissing = ConnectionSessionManager.shared.shellId(for: session) == nil
+        let shellStartInFlight = ConnectionSessionManager.shared.isShellStartInFlight(for: session.id)
+        let shouldRestoreKeyboardFocus =
+            shouldPreserveKeyboardDuringReconnect
+            && session.connectionState.isConnecting
+            && terminalView.shouldRestoreKeyboardFocusOnReconnect
+        let shouldKeepExistingKeyboardFocus = terminalView.isFirstResponder && shouldRestoreKeyboardFocus
+        let shouldAutoCaptureKeyboardFocus = session.connectionState.isConnected || shouldRestoreKeyboardFocus
+        terminalView.acceptsTerminalInput = session.connectionState.isConnected
         let shouldStartSSHConnection: Bool = {
             switch session.connectionState {
             case .connecting, .reconnecting, .connected:
@@ -768,16 +793,31 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         }()
         if context.coordinator.isTerminalReady
             && shellMissing
+            && context.coordinator.shellTask == nil
+            && !shellStartInFlight
             && shouldStartSSHConnection
+            && scenePhase == .active
             && !ConnectionSessionManager.shared.isSuspendingForBackground {
-            context.coordinator.startSSHConnection(terminal: terminalView)
+            let coordinator = context.coordinator
+            DispatchQueue.main.async { [weak terminalView] in
+                guard let terminalView else { return }
+                guard ConnectionSessionManager.shared.sessions.contains(where: { $0.id == session.id }) else { return }
+                guard ConnectionSessionManager.shared.shellId(for: session) == nil else { return }
+                guard !ConnectionSessionManager.shared.isShellStartInFlight(for: session.id) else { return }
+                coordinator.startSSHConnection(terminal: terminalView)
+            }
         }
 
-        // Only capture keyboard focus when terminal is active (not hidden behind stats view)
-        if isActive && context.coordinator.isTerminalReady {
+        // Keep the terminal from reclaiming focus while an overlay (for example
+        // the disconnected card) should be interactive above it.
+        if shouldRenderTerminal && context.coordinator.isTerminalReady && shouldAutoCaptureKeyboardFocus {
             if terminalView.window != nil && !terminalView.isFirstResponder {
                 _ = terminalView.becomeFirstResponder()
             }
+        } else if scenePhase == .active
+            && terminalView.isFirstResponder
+            && !shouldKeepExistingKeyboardFocus {
+            _ = terminalView.resignFirstResponder()
         }
     }
 

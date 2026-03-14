@@ -29,11 +29,12 @@ struct TerminalContainerView: View {
     @State private var dismissFallbackBanner = false
     @State private var reconnectInFlight = false
     @State private var connectWatchdogToken = UUID()
+    @State private var hasEstablishedConnection = false
     @AppStorage("sshAutoReconnect") private var autoReconnectEnabled = true
 
     /// Check if terminal already exists (was previously created)
     private var terminalAlreadyExists: Bool {
-        ConnectionSessionManager.shared.getTerminal(for: session.id) != nil
+        ConnectionSessionManager.shared.hasTerminal(for: session.id)
     }
 
     // Voice input state
@@ -80,6 +81,42 @@ struct TerminalContainerView: View {
         return session.tmuxStatus == .off
     }
 
+    private var shouldAllowTerminalInteraction: Bool {
+        session.connectionState.isConnected
+    }
+
+    private var shouldUseInlineReconnectPresentation: Bool {
+        hasEstablishedConnection && terminalAlreadyExists && session.connectionState.isConnecting
+    }
+
+    private var connectionState: ConnectionState {
+        session.connectionState
+    }
+
+    private var shouldAttemptConnection: Bool {
+        terminalAlreadyExists || connectionState.isConnected || connectionState.isConnecting
+    }
+
+    private var isFailedState: Bool {
+        if case .failed = connectionState { return true }
+        return false
+    }
+
+    private var hasServerAndCredentials: Bool {
+        server != nil && credentials != nil
+    }
+
+    private var shouldShowInitializing: Bool {
+        !terminalAlreadyExists
+            && !isFailedState
+            && connectionState != .disconnected
+            && (ghosttyApp.readiness != .ready || !isReady)
+    }
+
+    private var shouldShowInitializingOverlay: Bool {
+        shouldShowInitializing && hasServerAndCredentials
+    }
+
     #if os(macOS) || os(iOS)
     private var voiceTriggerHandler: (() -> Void)? {
         voiceButtonEnabled ? { handleVoiceTrigger() } : nil
@@ -88,250 +125,13 @@ struct TerminalContainerView: View {
 
     var body: some View {
         ZStack {
-            #if os(iOS)
-            terminalBackgroundColor
-            #else
-            terminalBackgroundColor.ignoresSafeArea()
-            #endif
-
-            let state = session.connectionState
-            let shouldAttemptConnection = terminalAlreadyExists || state.isConnected || state.isConnecting
-            let isFailedState: Bool = {
-                if case .failed = state { return true }
-                return false
-            }()
-            let hasServerAndCredentials = server != nil && credentials != nil
-            let shouldShowInitializing = !terminalAlreadyExists
-                && !isFailedState
-                && state != .disconnected
-                && (ghosttyApp.readiness != .ready || !isReady)
-            let shouldShowInitializingOverlay = shouldShowInitializing && hasServerAndCredentials
-
-            if shouldAttemptConnection {
-                Color.clear
-                    .onAppear {
-                        ghosttyApp.startIfNeeded()
-                    }
-                if let server = server, let credentials = credentials {
-                    // Wait for ghostty to be ready before creating terminal
-                    if ghosttyApp.readiness == .ready {
-                        SSHTerminalWrapper(
-                            session: session,
-                            server: server,
-                            credentials: credentials,
-                            isActive: isActive,
-                            onProcessExit: {
-                                ConnectionSessionManager.shared.handleShellExit(for: session.id)
-                            },
-                            onReady: {
-                                isReady = true
-                            },
-                            onVoiceTrigger: voiceTriggerHandler
-                        )
-                        .id(reconnectToken)
-                        .onAppear {
-                            // If terminal already exists, mark as ready immediately
-                            if terminalAlreadyExists {
-                                isReady = true
-                            }
-                            #if os(macOS)
-                            ConnectionSessionManager.shared.getTerminal(for: session.id)?.resumeRendering()
-                            #endif
-                        }
-                        #if os(macOS)
-                        .onDisappear {
-                            ConnectionSessionManager.shared.getTerminal(for: session.id)?.pauseRendering()
-                        }
-                        #endif
-                    }
-
-                    if ghosttyApp.readiness == .error {
-                        TerminalStatusCard {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                Text("Terminal initialization failed")
-                                    .foregroundStyle(.red)
-                            }
-                            .multilineTextAlignment(.center)
-                        }
-                    } else if shouldShowInitializingOverlay {
-                        TerminalStatusCard(showsScrim: false) {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                Text("Initializing terminal...")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .multilineTextAlignment(.center)
-                        }
-                    }
-                }
-            }
-
-            if ghosttyApp.readiness != .error && !shouldShowInitializingOverlay {
-                switch state {
-                case .connecting:
-                    TerminalStatusCard(showsScrim: false) {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                            Text("Connecting...")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 6)
-                        .multilineTextAlignment(.center)
-                    }
-                case .reconnecting(let attempt):
-                    TerminalStatusCard(showsScrim: false) {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                            Text(String(format: String(localized: "Reconnecting (attempt %lld)..."), Int64(attempt)))
-                                .foregroundStyle(.orange)
-                        }
-                        .multilineTextAlignment(.center)
-                    }
-                case .disconnected:
-                    TerminalStatusCard {
-                        VStack(spacing: 16) {
-                            Image(systemName: "bolt.slash")
-                                .font(.largeTitle)
-                                .foregroundStyle(.secondary)
-                            Text("Disconnected")
-                                .foregroundStyle(.secondary)
-                            if session.tmuxStatus.indicatesTmux {
-                                Text("tmux session is still running on the server.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            } else if shouldShowMoshDurabilityHint {
-                                Text("Without tmux, app backgrounding can interrupt running commands.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            Button("Reconnect") {
-                                Task { await retryConnection() }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .multilineTextAlignment(.center)
-                    }
-                case .failed(let error):
-                    TerminalStatusCard {
-                        VStack(spacing: 16) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.largeTitle)
-                                .foregroundStyle(.red)
-                            Text("Connection Failed")
-                                .font(.headline)
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                            Button("Retry") {
-                                Task { await retryConnection() }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .multilineTextAlignment(.center)
-                    }
-                case .connected, .idle:
-                    EmptyView()
-                }
-            }
-
-            if session.tmuxStatus == .installing {
-                TerminalStatusCard(showsScrim: false) {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                        Text("Installing tmux...")
-                            .foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.center)
-                }
-            }
-
-            if isInstallingMosh {
-                TerminalStatusCard(showsScrim: false) {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                        Text("Installing mosh-server...")
-                            .foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.center)
-                }
-            }
-
-            if let fallbackBannerMessage {
-                VStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.trianglehead.2.clockwise")
-                            .foregroundStyle(.orange)
-                        Text(fallbackBannerMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 0)
-                        Button {
-                            dismissFallbackBanner = true
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss fallback message")
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    Spacer()
-                }
-            }
-
-            // Error overlay
-            if let error = errorMessage {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                        Text(error)
-                            .font(.caption)
-                    }
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    .padding()
-                }
-            }
-
-            // Voice input overlays (macOS only)
-            #if os(macOS)
-            if session.connectionState.isConnected && isReady {
-                if showingVoiceRecording {
-                    voiceOverlay
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if voiceButtonEnabled {
-                    voiceTriggerButton
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .transition(.opacity)
-                }
-            }
-            #endif
-            #if os(iOS)
-            if session.connectionState.isConnected && isReady && showingVoiceRecording {
-                voiceOverlay
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.horizontal, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
-            }
-            #endif
+            terminalBackgroundLayer
+            terminalSurfaceLayer
+            stateOverlayLayer
+            progressOverlayLayer
+            topBannerOverlayLayer
+            errorOverlayLayer
+            voiceOverlayLayer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
@@ -342,6 +142,9 @@ struct TerminalContainerView: View {
         }
         .onAppear {
             updateTerminalBackgroundColor()
+            if session.connectionState.isConnected {
+                hasEstablishedConnection = true
+            }
             if session.tmuxStatus == .missing {
                 showingTmuxInstallPrompt = true
             }
@@ -367,6 +170,9 @@ struct TerminalContainerView: View {
         }
         .onChange(of: session.connectionState) { state in
             if state.isConnecting || state.isConnected {
+                if state.isConnected {
+                    hasEstablishedConnection = true
+                }
                 reconnectInFlight = false
                 connectWatchdogToken = UUID()
                 startConnectWatchdog()
@@ -451,6 +257,332 @@ struct TerminalContainerView: View {
             }
         }
         #endif
+    }
+
+    @ViewBuilder
+    private var terminalBackgroundLayer: some View {
+        #if os(iOS)
+        terminalBackgroundColor
+        #else
+        terminalBackgroundColor.ignoresSafeArea()
+        #endif
+    }
+
+    @ViewBuilder
+    private var terminalSurfaceLayer: some View {
+        if shouldAttemptConnection {
+            Color.clear
+                .onAppear {
+                    ghosttyApp.startIfNeeded()
+                }
+
+            if let server, let credentials {
+                if ghosttyApp.readiness == .ready {
+                    terminalWrapperView(server: server, credentials: credentials)
+                    .allowsHitTesting(shouldAllowTerminalInteraction)
+                    .id(reconnectToken)
+                    .onAppear {
+                        if terminalAlreadyExists {
+                            isReady = true
+                        }
+                        #if os(macOS)
+                        ConnectionSessionManager.shared.peekTerminal(for: session.id)?.resumeRendering()
+                        #endif
+                    }
+                    #if os(macOS)
+                    .onDisappear {
+                        ConnectionSessionManager.shared.peekTerminal(for: session.id)?.pauseRendering()
+                    }
+                    #endif
+                }
+
+                terminalInitializationOverlay
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func terminalWrapperView(server: Server, credentials: ServerCredentials) -> some View {
+        #if os(iOS)
+        SSHTerminalWrapper(
+            session: session,
+            server: server,
+            credentials: credentials,
+            isActive: isActive,
+            shouldPreserveKeyboardDuringReconnect: true,
+            onProcessExit: {
+                DispatchQueue.main.async {
+                    ConnectionSessionManager.shared.handleShellExit(for: session.id)
+                }
+            },
+            onReady: {
+                isReady = true
+            },
+            onVoiceTrigger: voiceTriggerHandler
+        )
+        #else
+        SSHTerminalWrapper(
+            session: session,
+            server: server,
+            credentials: credentials,
+            isActive: isActive,
+            onProcessExit: {
+                DispatchQueue.main.async {
+                    ConnectionSessionManager.shared.handleShellExit(for: session.id)
+                }
+            },
+            onReady: {
+                isReady = true
+            },
+            onVoiceTrigger: voiceTriggerHandler
+        )
+        #endif
+    }
+
+    @ViewBuilder
+    private var terminalInitializationOverlay: some View {
+        if ghosttyApp.readiness == .error {
+            TerminalStatusCard {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Terminal initialization failed")
+                        .foregroundStyle(.red)
+                }
+                .multilineTextAlignment(.center)
+            }
+        } else if shouldShowInitializingOverlay {
+            TerminalStatusCard(showsScrim: false) {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Initializing terminal...")
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stateOverlayLayer: some View {
+        if ghosttyApp.readiness != .error && !shouldShowInitializingOverlay {
+            switch connectionState {
+            case .connecting:
+                if !shouldUseInlineReconnectPresentation {
+                    TerminalStatusCard(showsScrim: false) {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                            Text("Connecting...")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 6)
+                        .multilineTextAlignment(.center)
+                    }
+                }
+            case .reconnecting(let attempt):
+                if !shouldUseInlineReconnectPresentation {
+                    TerminalStatusCard(showsScrim: false) {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                            Text(String(format: String(localized: "Reconnecting (attempt %lld)..."), Int64(attempt)))
+                                .foregroundStyle(.orange)
+                        }
+                        .multilineTextAlignment(.center)
+                    }
+                }
+            case .disconnected:
+                TerminalStatusCard {
+                    VStack(spacing: 16) {
+                        Image(systemName: "bolt.slash")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("Disconnected")
+                            .foregroundStyle(.secondary)
+                        if session.tmuxStatus.indicatesTmux {
+                            Text("tmux session is still running on the server.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        } else if shouldShowMoshDurabilityHint {
+                            Text("Without tmux, app backgrounding can interrupt running commands.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        Button("Reconnect") {
+                            Task { await retryConnection() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .multilineTextAlignment(.center)
+                }
+            case .failed(let error):
+                TerminalStatusCard(showsScrim: false) {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.red)
+                        Text("Connection Failed")
+                            .font(.headline)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Retry") {
+                            Task { await retryConnection() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .multilineTextAlignment(.center)
+                }
+            case .connected, .idle:
+                EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var progressOverlayLayer: some View {
+        if session.tmuxStatus == .installing {
+            TerminalStatusCard(showsScrim: false) {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Installing tmux...")
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+            }
+        }
+
+        if isInstallingMosh {
+            TerminalStatusCard(showsScrim: false) {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Installing mosh-server...")
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var topBannerOverlayLayer: some View {
+        if let fallbackBannerMessage {
+            bannerOverlay(
+                icon: "arrow.trianglehead.2.clockwise",
+                tint: .orange,
+                message: fallbackBannerMessage,
+                showsDismissButton: true
+            ) {
+                dismissFallbackBanner = true
+            }
+        }
+
+        if shouldUseInlineReconnectPresentation {
+            bannerOverlay(
+                progressTint: .orange,
+                tint: .orange,
+                message: String(localized: "Reconnecting…")
+            )
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var errorOverlayLayer: some View {
+        if let error = errorMessage {
+            VStack {
+                Spacer()
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                    Text(error)
+                        .font(.caption)
+                }
+                .padding(8)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var voiceOverlayLayer: some View {
+        #if os(macOS)
+        if session.connectionState.isConnected && isReady {
+            if showingVoiceRecording {
+                voiceOverlay
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if voiceButtonEnabled {
+                voiceTriggerButton
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .transition(.opacity)
+            }
+        }
+        #endif
+
+        #if os(iOS)
+        if session.connectionState.isConnected && isReady && showingVoiceRecording {
+            voiceOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(1)
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private func bannerOverlay(
+        icon: String? = nil,
+        progressTint: Color? = nil,
+        tint: Color,
+        message: String,
+        showsDismissButton: Bool = false,
+        onDismiss: (() -> Void)? = nil
+    ) -> some View {
+        VStack {
+            HStack(spacing: 8) {
+                if let progressTint {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(progressTint)
+                }
+
+                if let icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(tint)
+                }
+
+                Text(message)
+                    .font(.caption.weight(progressTint == nil ? .regular : .semibold))
+                    .foregroundStyle(progressTint == nil ? .secondary : tint)
+
+                Spacer(minLength: 0)
+
+                if showsDismissButton, let onDismiss {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss fallback message")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            Spacer()
+        }
     }
 
     private func updateTerminalBackgroundColor() {

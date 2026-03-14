@@ -790,9 +790,7 @@ struct iOSTerminalView: View {
             set: { newValue in
                 let current = sessionManager.selectedViewByServer[serverId] ?? "stats"
                 guard current != newValue else { return }
-                DispatchQueue.main.async {
-                    sessionManager.selectedViewByServer[serverId] = newValue
-                }
+                sessionManager.selectedViewByServer[serverId] = newValue
             }
         )
     }
@@ -888,9 +886,6 @@ struct iOSTerminalView: View {
                     currentServerId = session.serverId
                 }
                 synchronizeRecoveredTerminalState()
-                if selectedView == "terminal", let session = selectedSession {
-                    activateTerminal(session)
-                }
                 attemptForegroundReconnectIfNeeded()
             }
             .onChange(of: isConnecting) { _ in
@@ -900,7 +895,9 @@ struct iOSTerminalView: View {
                 if newValue != "terminal" {
                     dismissKeyboardForCurrentSession()
                 } else {
-                    attemptForegroundReconnectIfNeeded(refreshTerminal: true)
+                    DispatchQueue.main.async {
+                        attemptForegroundReconnectIfNeeded(refreshTerminal: true)
+                    }
                 }
             }
             .onChange(of: sessionManager.isSuspendingForBackground) { isSuspending in
@@ -1144,7 +1141,8 @@ struct iOSTerminalView: View {
 
     private func dismissKeyboardForCurrentSession() {
         guard let selectedId = effectiveSelectedSessionId,
-              let terminal = ConnectionSessionManager.shared.getTerminal(for: selectedId) else { return }
+              let terminal = ConnectionSessionManager.shared.peekTerminal(for: selectedId) else { return }
+        terminal.clearKeyboardFocusForReconnect()
         _ = terminal.resignFirstResponder()
     }
 
@@ -1167,7 +1165,7 @@ struct iOSTerminalView: View {
     private func sessionPage(_ session: ConnectionSession) -> some View {
         let server = serverManager.servers.first { $0.id == session.serverId }
         let viewSelection = sessionManager.selectedViewByServer[session.serverId] ?? "stats"
-        let terminalAlreadyExists = ConnectionSessionManager.shared.getTerminal(for: session.id) != nil
+        let terminalAlreadyExists = ConnectionSessionManager.shared.hasTerminal(for: session.id)
         let shouldShowTerminal = shouldShowTerminalBySession[session.id] ?? false
         let reconnectToken = reconnectTokenBySession[session.id] ?? session.id
 
@@ -1217,7 +1215,7 @@ struct iOSTerminalView: View {
     }
 
     private func activateTerminal(_ session: ConnectionSession) {
-        let terminalAlreadyExists = ConnectionSessionManager.shared.getTerminal(for: session.id) != nil
+        let terminalAlreadyExists = ConnectionSessionManager.shared.hasTerminal(for: session.id)
         prepareTerminal(session: session, viewSelection: selectedView, terminalAlreadyExists: terminalAlreadyExists)
         guard selectedView == "terminal" else { return }
         focusTerminal(for: session)
@@ -1319,7 +1317,9 @@ struct iOSTerminalView: View {
 
     /// Refresh terminal display and trigger server redraw
     private func refreshTerminal(for session: ConnectionSession) {
-        guard let terminal = ConnectionSessionManager.shared.getTerminal(for: session.id) else { return }
+        guard scenePhase == .active else { return }
+        guard let terminal = ConnectionSessionManager.shared.peekTerminal(for: session.id) else { return }
+        ConnectionSessionManager.shared.markTerminalUsed(for: session.id)
 
         // Resume rendering if paused
         terminal.resumeRendering()
@@ -1327,8 +1327,9 @@ struct iOSTerminalView: View {
         // Force layout + refresh after a brief delay to ensure the view is attached.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak terminal] in
             guard let terminal else { return }
+            guard scenePhase == .active else { return }
             guard ConnectionSessionManager.shared.sessions.contains(where: { $0.id == session.id }) else { return }
-            guard ConnectionSessionManager.shared.getTerminal(for: session.id) === terminal else { return }
+            guard ConnectionSessionManager.shared.peekTerminal(for: session.id) === terminal else { return }
             guard terminal.window != nil else { return }
 
             if let container = terminal.superview {
@@ -1360,7 +1361,9 @@ struct iOSTerminalView: View {
     }
 
     private func focusTerminal(for session: ConnectionSession) {
-        guard let terminal = ConnectionSessionManager.shared.getTerminal(for: session.id) else { return }
+        guard scenePhase == .active else { return }
+        guard let terminal = ConnectionSessionManager.shared.peekTerminal(for: session.id) else { return }
+        ConnectionSessionManager.shared.markTerminalUsed(for: session.id)
 
         let attemptFocus = { [weak terminal] in
             guard let terminal = terminal else { return }

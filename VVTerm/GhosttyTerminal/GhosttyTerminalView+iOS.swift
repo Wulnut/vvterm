@@ -600,16 +600,38 @@ class GhosttyTerminalView: UIView {
         return true
     }
 
+    private var isTextInputSessionEligible: Bool {
+        guard !isShuttingDown else { return false }
+        guard window != nil, !isHidden, alpha > 0.01 else { return false }
+        if let activationState = window?.windowScene?.activationState {
+            return activationState == .foregroundActive
+        }
+        return UIApplication.shared.applicationState == .active
+    }
+
+    var acceptsTerminalInput = true
+    private(set) var shouldRestoreKeyboardFocusOnReconnect = false
+
+    func markKeyboardFocusForReconnect() {
+        shouldRestoreKeyboardFocusOnReconnect = true
+    }
+
+    func clearKeyboardFocusForReconnect() {
+        shouldRestoreKeyboardFocusOnReconnect = false
+    }
+
     override var textInputContextIdentifier: String? {
-        Self.textInputContextID
+        isTextInputSessionEligible ? Self.textInputContextID : nil
     }
 
     override func becomeFirstResponder() -> Bool {
+        guard isTextInputSessionEligible else { return false }
         let result = super.becomeFirstResponder()
         if result, let surface = surface?.unsafeCValue {
             ghostty_surface_set_focus(surface, true)
         }
         if result {
+            shouldRestoreKeyboardFocusOnReconnect = true
             resetTextInputCursorIfNeeded(forceReanchor: textInputCursorIndex <= 1)
             updateHardwareKeyboardState(reloadInputViewsIfNeeded: true)
         }
@@ -617,12 +639,13 @@ class GhosttyTerminalView: UIView {
     }
 
     override func resignFirstResponder() -> Bool {
+        guard isFirstResponder else { return true }
         let result = super.resignFirstResponder()
-        if result, let surface = surface?.unsafeCValue {
+        if (result || !isTextInputSessionEligible), let surface = surface?.unsafeCValue {
             ghostty_surface_set_focus(surface, false)
         }
         stopKeyRepeat()
-        return result
+        return result || !isTextInputSessionEligible
     }
 
     override func layoutSubviews() {
@@ -705,7 +728,7 @@ class GhosttyTerminalView: UIView {
         let hasHardwareKeyboard = traitCollection.userInterfaceIdiom == .pad && GCKeyboard.coalesced != nil
         guard hasHardwareKeyboard != hasHardwareKeyboardAttached else { return }
         hasHardwareKeyboardAttached = hasHardwareKeyboard
-        if reloadInputViewsIfNeeded, isFirstResponder {
+        if reloadInputViewsIfNeeded, isFirstResponder, isTextInputSessionEligible {
             reloadInputViews()
         }
     }
@@ -714,7 +737,7 @@ class GhosttyTerminalView: UIView {
         guard traitCollection.userInterfaceIdiom == .pad else { return }
         guard !hasHardwareKeyboardAttached else { return }
         hasHardwareKeyboardAttached = true
-        if isFirstResponder {
+        if isFirstResponder, isTextInputSessionEligible {
             reloadInputViews()
         }
     }
@@ -1333,11 +1356,13 @@ class GhosttyTerminalView: UIView {
 
     /// Send text to the terminal (called from keyboard toolbar or software keyboard)
     func sendText(_ text: String) {
+        guard acceptsTerminalInput else { return }
         surface?.sendText(text)
         requestRender()
     }
 
     private func sendKeyPress(_ key: Ghostty.Input.Key) {
+        guard acceptsTerminalInput else { return }
         guard let surface = surface else { return }
         surface.sendKeyEvent(.init(key: key, action: .press))
         surface.sendKeyEvent(.init(key: key, action: .release))
@@ -1345,11 +1370,13 @@ class GhosttyTerminalView: UIView {
     }
 
     private func sendControlByte(_ value: UInt8) {
+        guard acceptsTerminalInput else { return }
         let scalar = UnicodeScalar(value)
         sendText(String(Character(scalar)))
     }
 
     private func sendAnsiSequence(_ data: Data) {
+        guard acceptsTerminalInput else { return }
         let text = String(decoding: data, as: UTF8.self)
         sendText(text)
     }
@@ -1375,6 +1402,7 @@ class GhosttyTerminalView: UIView {
     }
 
     private func sendModifiedKey(_ key: Ghostty.Input.Key, mods: Ghostty.Input.Mods, text: String? = nil, unshiftedCodepoint: UInt32 = 0) {
+        guard acceptsTerminalInput else { return }
         guard let surface = surface else { return }
         let press = Ghostty.Input.KeyEvent(
             key: key,
@@ -1488,6 +1516,7 @@ class GhosttyTerminalView: UIView {
     /// Force the terminal surface to refresh/redraw
     func forceRefresh() {
         if isShuttingDown { return }
+        if isPaused { return }
         guard let surface = surface?.unsafeCValue else { return }
         guard bounds.width > 0 && bounds.height > 0 else { return }
 
@@ -1724,6 +1753,7 @@ extension GhosttyTerminalView {
             }, onCustomAction: { [weak self] action in
                 self?.handleToolbarCustomAction(action)
             }, onVoice: onVoiceButtonTapped, onDismissKeyboard: { [weak self] in
+                self?.clearKeyboardFocusForReconnect()
                 _ = self?.resignFirstResponder()
             })
             keyboardToolbar = toolbar
@@ -2573,6 +2603,7 @@ extension GhosttyTerminalView: UIKeyInput, UITextInputTraits {
     var hasText: Bool { true }
 
     func insertText(_ text: String) {
+        guard acceptsTerminalInput else { return }
         let text = text.precomposedStringWithCanonicalMapping
         if text.hasPrefix("UIKeyInput") {
             return
@@ -2619,6 +2650,7 @@ extension GhosttyTerminalView: UIKeyInput, UITextInputTraits {
     }
 
     func deleteBackward() {
+        guard acceptsTerminalInput else { return }
         var model = terminalTextInputModel
         let effects = model.handleDeleteBackward()
         terminalTextInputModel = model

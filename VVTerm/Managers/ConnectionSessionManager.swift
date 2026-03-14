@@ -11,7 +11,7 @@ import UIKit
 // MARK: - Connection Session Manager
 
 struct SSHShellRegistry {
-    struct Registration {
+    struct Registration: Sendable {
         let serverId: UUID
         let client: SSHClient
         let shellId: UUID
@@ -19,24 +19,24 @@ struct SSHShellRegistry {
         let fallbackReason: MoshFallbackReason?
     }
 
-    struct StartContext {
+    struct StartContext: Sendable {
         let startedAt: Date
         let client: SSHClient
         let serverId: UUID
     }
 
-    struct RegisterResult {
+    struct RegisterResult: Sendable {
         let accepted: Bool
         let staleIncomingShell: (client: SSHClient, shellId: UUID)?
         let replacedShell: (client: SSHClient, shellId: UUID)?
     }
 
-    struct StartResult {
+    struct StartResult: Sendable {
         let started: Bool
         let staleContext: StartContext?
     }
 
-    struct InFlightResult {
+    struct InFlightResult: Sendable {
         let inFlight: Bool
         let staleContext: StartContext?
     }
@@ -188,6 +188,11 @@ struct SSHShellRegistry {
 @MainActor
 final class ConnectionSessionManager: ObservableObject {
     static let shared = ConnectionSessionManager()
+
+    private struct SSHUnregisterResult: Sendable {
+        let shellToClose: (client: SSHClient, shellId: UUID)?
+        let clientToDisconnect: SSHClient?
+    }
 
     @Published var sessions: [ConnectionSession] = [] {
         didSet {
@@ -478,6 +483,9 @@ final class ConnectionSessionManager: ObservableObject {
            let replacementTerminal = terminalViews[replacementSessionId],
            replacementTerminal.window != nil {
             DispatchQueue.main.async {
+                #if os(iOS)
+                guard UIApplication.shared.applicationState == .active else { return }
+                #endif
                 _ = replacementTerminal.becomeFirstResponder()
             }
         }
@@ -540,16 +548,27 @@ final class ConnectionSessionManager: ObservableObject {
 
         pauseCachedTerminalsForBackground()
         let sessionsToSuspend = sessions
+        var unregisterResults: [SSHUnregisterResult] = []
+        unregisterResults.reserveCapacity(sessionsToSuspend.count)
         for session in sessionsToSuspend {
             if session.connectionState.isConnected || session.connectionState.isConnecting {
                 updateSessionState(session.id, to: .disconnected)
             }
             // Cancel any in-flight connects while preserving terminal state
             shellSuspendHandlers[session.id]?()
+            unregisterResults.append(takeSSHClientRegistration(for: session.id))
         }
-        for session in sessionsToSuspend {
-            await unregisterSSHClient(for: session.id)
+
+        if unregisterResults.contains(where: { $0.shellToClose != nil || $0.clientToDisconnect != nil }) {
+            await withTaskGroup(of: Void.self) { group in
+                for unregisterResult in unregisterResults {
+                    group.addTask {
+                        await ConnectionSessionManager.finishSSHCleanup(for: unregisterResult)
+                    }
+                }
+            }
         }
+
         logger.info("Suspended all sessions for background")
     }
 
@@ -672,27 +691,8 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     func unregisterSSHClient(for sessionId: UUID) async {
-        let unregisterResult = shellRegistry.unregister(for: sessionId)
-
-        guard let registration = unregisterResult.registration else {
-            if let pendingStart = unregisterResult.pendingStart {
-                if !shellRegistry.hasClientReferences(pendingStart.client) {
-                    await pendingStart.client.disconnect()
-                }
-            }
-            return
-        }
-
-        await registration.client.closeShell(registration.shellId)
-
-        if !shellRegistry.hasClientReferences(registration.client) {
-            await registration.client.disconnect()
-        }
-
-        if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
-            sessions[index].activeTransport = .ssh
-            sessions[index].moshFallbackReason = nil
-        }
+        let unregisterResult = takeSSHClientRegistration(for: sessionId)
+        await Self.finishSSHCleanup(for: unregisterResult)
     }
 
     func sshClient(for session: ConnectionSession) -> SSHClient? {
@@ -888,6 +888,9 @@ final class ConnectionSessionManager: ObservableObject {
         #if os(iOS)
         for terminal in terminalViews.values {
             terminal.pauseRendering()
+            if terminal.isFirstResponder {
+                terminal.markKeyboardFocusForReconnect()
+            }
             _ = terminal.resignFirstResponder()
         }
         #endif
@@ -899,6 +902,22 @@ final class ConnectionSessionManager: ObservableObject {
             return terminal
         }
         return nil
+    }
+
+    /// Returns a terminal without mutating LRU state.
+    func peekTerminal(for sessionId: UUID) -> GhosttyTerminalView? {
+        terminalViews[sessionId]
+    }
+
+    /// Returns whether a terminal exists without mutating LRU state.
+    func hasTerminal(for sessionId: UUID) -> Bool {
+        terminalViews[sessionId] != nil
+    }
+
+    /// Marks an existing terminal as recently used without fetching it for body evaluation.
+    func markTerminalUsed(for sessionId: UUID) {
+        guard terminalViews[sessionId] != nil else { return }
+        touchTerminal(sessionId)
     }
 
     /// Send text to the terminal for a given session (used by voice input)
@@ -931,6 +950,43 @@ final class ConnectionSessionManager: ObservableObject {
 
         // Disconnect existing SSH client
         await unregisterSSHClient(for: session.id)
+    }
+
+    private func takeSSHClientRegistration(for sessionId: UUID) -> SSHUnregisterResult {
+        let unregisterResult = shellRegistry.unregister(for: sessionId)
+        var shellToClose: (client: SSHClient, shellId: UUID)?
+        var clientToDisconnect: SSHClient?
+
+        if let registration = unregisterResult.registration {
+            shellToClose = (client: registration.client, shellId: registration.shellId)
+            if !shellRegistry.hasClientReferences(registration.client) {
+                clientToDisconnect = registration.client
+            }
+        } else if let pendingStart = unregisterResult.pendingStart,
+                  !shellRegistry.hasClientReferences(pendingStart.client) {
+            clientToDisconnect = pendingStart.client
+        }
+
+        if unregisterResult.registration != nil,
+           let index = sessions.firstIndex(where: { $0.id == sessionId }) {
+            sessions[index].activeTransport = .ssh
+            sessions[index].moshFallbackReason = nil
+        }
+
+        return SSHUnregisterResult(
+            shellToClose: shellToClose,
+            clientToDisconnect: clientToDisconnect
+        )
+    }
+
+    private static func finishSSHCleanup(for unregisterResult: SSHUnregisterResult) async {
+        if let shellToClose = unregisterResult.shellToClose {
+            await shellToClose.client.closeShell(shellToClose.shellId)
+        }
+
+        if let clientToDisconnect = unregisterResult.clientToDisconnect {
+            await clientToDisconnect.disconnect()
+        }
     }
 
 }

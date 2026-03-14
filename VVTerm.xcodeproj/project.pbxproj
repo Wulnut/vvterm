@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4FB0ED9B3F04FE89CE2BD32E /* VVTermLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F3220D94C71F0D68A0DF623E /* VVTermLiveActivity.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4FB0ED9B3F04FE89CE2BD32E /* VVTermLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F3220D94C71F0D68A0DF623E /* VVTermLiveActivity.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		82B734D4923B7DD325984127 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 1853ABB6CF8195DF93B55895 /* ZIPFoundation */; };
 		8E5D7C9695EF4C72AD9AB276 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A089872E7F6345088D2FA637 /* AppIntents.framework */; };
 		CC83449F2F0D18CF006804BF /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = CC8312B12F0CD850006804BF /* MLX */; };
@@ -43,15 +43,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		8804B4B960F685A60CCAEA62 /* Embed App Extensions */ = {
+		8804B4B960F685A60CCAEA62 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				4FB0ED9B3F04FE89CE2BD32E /* VVTermLiveActivity.appex in Embed App Extensions */,
+				4FB0ED9B3F04FE89CE2BD32E /* VVTermLiveActivity.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -220,7 +220,7 @@
 				CC83127A2F0CD84D006804BF /* Sources */,
 				CC83127B2F0CD84D006804BF /* Frameworks */,
 				CC83127C2F0CD84D006804BF /* Resources */,
-				8804B4B960F685A60CCAEA62 /* Embed App Extensions */,
+				8804B4B960F685A60CCAEA62 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -299,7 +299,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					0EA2F32A1035EAEEB6704E32 = {
 						CreatedOnToolsVersion = 26.2;
@@ -444,6 +444,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = VVTermLiveActivity/Info.plist;
@@ -463,6 +464,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = VVTermLiveActivity/Info.plist;
@@ -488,6 +490,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "VVTerm-macOS/VVTerm.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -628,6 +631,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "VVTerm-macOS/VVTerm.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -762,6 +766,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -791,6 +796,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -814,6 +820,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -824,6 +831,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -853,6 +861,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -869,6 +878,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -879,6 +889,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[sdk=iphoneos*]" = (
@@ -917,6 +928,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[sdk=iphoneos*]" = (
@@ -954,6 +966,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
@@ -979,6 +992,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = QW4U57CXJX;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
