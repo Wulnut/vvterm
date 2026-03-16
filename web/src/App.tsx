@@ -80,6 +80,7 @@ function AppContent() {
         send_to: GTAG_CONVERSION_ID,
         value: value ?? 0,
         currency: "USD",
+        transaction_id: `${eventName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
         event_callback: navigate,
       });
       // Fallback if gtag callback doesn't fire within 1s
