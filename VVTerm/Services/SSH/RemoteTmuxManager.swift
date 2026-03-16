@@ -49,13 +49,13 @@ actor RemoteTmuxManager {
         let tmux = tmuxCommand(scope: scope, includeUTF8: false, includeConfig: false)
         // Try richer format first, then fall back for older tmux versions.
         let candidates = [
-            "\(shellPathExport()); \(tmux) list-sessions -F '#{session_name} #{session_attached} #{session_windows}' 2>/dev/null",
-            "\(shellPathExport()); \(tmux) list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null",
-            "\(shellPathExport()); \(tmux) list-sessions 2>/dev/null"
+            "\(RemoteTerminalBootstrap.shellPathExport()); \(tmux) list-sessions -F '#{session_name} #{session_attached} #{session_windows}' 2>/dev/null",
+            "\(RemoteTerminalBootstrap.shellPathExport()); \(tmux) list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null",
+            "\(RemoteTerminalBootstrap.shellPathExport()); \(tmux) list-sessions 2>/dev/null"
         ]
 
         for (index, body) in candidates.enumerated() {
-            let command = "sh -lc \(shellQuoted(body))"
+            let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
             guard let output = try? await client.execute(command, timeout: listTimeout) else { continue }
             let sessions = parseSessionListOutput(output, scope: scope, allowLegacy: index == candidates.count - 1)
 
@@ -69,7 +69,7 @@ actor RemoteTmuxManager {
 
     func prepareConfig(using client: SSHClient) async {
         let body = configWriteCommand()
-        let command = "sh -lc \(shellQuoted(body))"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         _ = try? await client.execute(command, timeout: configTimeout)
     }
 
@@ -125,7 +125,7 @@ actor RemoteTmuxManager {
         )
         let configWrite = configWriteCommand()
         let body = """
-        \(shellPathExport());
+        \(RemoteTerminalBootstrap.shellPathExport());
         \(configWrite);
         if command -v tmux >/dev/null 2>&1; then \(attach); fi;
         if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; else SUDO=""; fi;
@@ -167,7 +167,7 @@ actor RemoteTmuxManager {
         fi;
         if command -v tmux >/dev/null 2>&1; then \(attach); else echo "tmux installation failed."; fi
         """
-        return "sh -lc \(shellQuoted(body))"
+        return "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
     }
 
     func sendScript(_ script: String, using client: SSHClient, shellId: UUID) async {
@@ -181,25 +181,25 @@ actor RemoteTmuxManager {
         using client: SSHClient,
         scope: TmuxSocketScope = .managed
     ) async {
-        let quoted = shellQuoted(sessionName)
+        let quoted = RemoteTerminalBootstrap.shellQuoted(sessionName)
         let killCommands = lookupScopes(for: scope)
             .map { "\(tmuxCommand(scope: $0, includeUTF8: false, includeConfig: false)) kill-session -t \(quoted) 2>/dev/null || true" }
             .joined(separator: "; ")
-        let body = "\(shellPathExport()); \(killCommands)"
-        let command = "sh -lc \(shellQuoted(body))"
+        let body = "\(RemoteTerminalBootstrap.shellPathExport()); \(killCommands)"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         _ = try? await client.execute(command, timeout: killTimeout)
     }
 
     func cleanupLegacySessions(using client: SSHClient) async {
         let body = """
-        \(shellPathExport());
+        \(RemoteTerminalBootstrap.shellPathExport());
         if command -v tmux >/dev/null 2>&1; then
           tmux list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null | awk '$1 ~ /^vvterm_[0-9a-fA-F-]+$/ && $2 == 0 { print $1 }' | while IFS= read -r name; do
             tmux kill-session -t "$name" 2>/dev/null || true;
           done;
         fi
         """
-        let command = "sh -lc \(shellQuoted(body))"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         _ = try? await client.execute(command, timeout: cleanupTimeout)
     }
 
@@ -221,11 +221,11 @@ actor RemoteTmuxManager {
         using client: SSHClient,
         scope: TmuxSocketScope
     ) async -> String? {
-        let quotedSession = shellQuoted(sessionName)
+        let quotedSession = RemoteTerminalBootstrap.shellQuoted(sessionName)
         for lookupScope in lookupScopes(for: scope) {
             let tmux = tmuxCommand(scope: lookupScope, includeUTF8: false, includeConfig: false)
-            let body = "\(shellPathExport()); \(tmux) list-panes -t \(quotedSession) -F '#{pane_current_path}' 2>/dev/null | head -n 1"
-            let command = "sh -lc \(shellQuoted(body))"
+            let body = "\(RemoteTerminalBootstrap.shellPathExport()); \(tmux) list-panes -t \(quotedSession) -F '#{pane_current_path}' 2>/dev/null | head -n 1"
+            let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
             guard let output = try? await client.execute(command, timeout: pathTimeout) else { continue }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
@@ -235,43 +235,12 @@ actor RemoteTmuxManager {
         return nil
     }
 
-    nonisolated private func shellQuoted(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
-    }
-
     nonisolated private func shellDirectoryArgument(_ value: String) -> String {
         if value == "~" {
             return "$HOME"
         }
         let escaped = value.replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(escaped)\""
-    }
-
-    nonisolated private func shellPathPrefix() -> String {
-        "PATH=\"\(shellPathValue())\""
-    }
-
-    nonisolated private func shellPathExport() -> String {
-        "export PATH=\"\(shellPathValue())\""
-    }
-
-    nonisolated private func shellPathValue() -> String {
-        let paths = [
-            "$HOME/.local/bin",
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "/usr/local/sbin",
-            "/opt/local/bin",
-            "/opt/local/sbin",
-            "/snap/bin",
-            "/usr/bin",
-            "/bin",
-            "/usr/sbin",
-            "/sbin"
-        ]
-        return paths.joined(separator: ":") + ":$PATH"
     }
 
     nonisolated private func uniqueScopes(_ scopes: [TmuxSocketScope]) -> [TmuxSocketScope] {
@@ -297,7 +266,7 @@ actor RemoteTmuxManager {
         case .startupExec:
             return body
         case .interactiveShell:
-            return "sh -lc \(shellQuoted(body))"
+            return "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         }
     }
 
@@ -332,22 +301,23 @@ actor RemoteTmuxManager {
         scopes: [TmuxSocketScope],
         missingCommand: String
     ) -> String {
-        let exactSession = shellQuoted("=\(sessionName)")
-        let plainSession = shellQuoted(sessionName)
+        let exactSession = RemoteTerminalBootstrap.shellQuoted("=\(sessionName)")
+        let plainSession = RemoteTerminalBootstrap.shellQuoted(sessionName)
         let probeScopes = uniqueScopes(scopes)
 
-        var body = "\(shellPathExport()); "
+        var body = "\(RemoteTerminalBootstrap.shellPathExport()); "
         var branches: [(condition: String, action: String)] = []
         for scope in probeScopes {
             let tmuxProbe = tmuxCommand(scope: scope, includeUTF8: false, includeConfig: false)
             let tmuxAttach = tmuxCommand(scope: scope, includeUTF8: true, includeConfig: true)
+            let tmuxSource = tmuxCommand(scope: scope, includeUTF8: false, includeConfig: false)
             branches.append((
                 condition: "\(tmuxProbe) has-session -t \(exactSession) 2>/dev/null",
-                action: "exec \(tmuxAttach) attach-session -t \(exactSession)"
+                action: "\(tmuxSource) source-file \(configPath) >/dev/null 2>&1 || true; exec \(tmuxAttach) attach-session -t \(exactSession)"
             ))
             branches.append((
                 condition: "\(tmuxProbe) has-session -t \(plainSession) 2>/dev/null",
-                action: "exec \(tmuxAttach) attach-session -t \(plainSession)"
+                action: "\(tmuxSource) source-file \(configPath) >/dev/null 2>&1 || true; exec \(tmuxAttach) attach-session -t \(plainSession)"
             ))
         }
 
@@ -368,7 +338,7 @@ actor RemoteTmuxManager {
         scope: TmuxSocketScope
     ) -> String {
         let escapedDir = shellDirectoryArgument(workingDirectory)
-        let escapedSession = shellQuoted(sessionName)
+        let escapedSession = RemoteTerminalBootstrap.shellQuoted(sessionName)
         let tmux = tmuxCommand(scope: scope, includeUTF8: true, includeConfig: true)
         return "exec \(tmux) new-session -A -s \(escapedSession) -c \(escapedDir)"
     }
@@ -382,7 +352,7 @@ actor RemoteTmuxManager {
         if scope == .managed {
             // Use a dedicated socket for VVTerm-managed sessions so a stale user server
             // on the default socket does not break reattach after tmux upgrades.
-            parts.append("-L \(shellQuoted(managedSocketName))")
+            parts.append("-L \(RemoteTerminalBootstrap.shellQuoted(managedSocketName))")
         }
         if includeUTF8 {
             parts.append("-u")
@@ -395,7 +365,7 @@ actor RemoteTmuxManager {
 
     nonisolated func tmuxAvailabilityProbeCommand(okMarker: String) -> String {
         let body = """
-        \(shellPathExport());
+        \(RemoteTerminalBootstrap.shellPathExport());
         VVTERM_TMUX_BIN="";
         if command -v tmux >/dev/null 2>&1; then
           VVTERM_TMUX_BIN="$(command -v tmux 2>/dev/null)";
@@ -414,7 +384,7 @@ actor RemoteTmuxManager {
           printf '__VVTERM_TMUX_NO__';
         fi
         """
-        return "sh -c \(shellQuoted(body))"
+        return "sh -c \(RemoteTerminalBootstrap.shellQuoted(body))"
     }
 
     nonisolated func parseSessionListOutput(
@@ -545,15 +515,26 @@ actor RemoteTmuxManager {
     nonisolated private func configWriteCommand() -> String {
         let themeName = UserDefaults.standard.string(forKey: "terminalThemeName") ?? "Aizen Dark"
         let modeStyle = ThemeColorParser.tmuxModeStyle(for: themeName)
-        let lines = [
+        var lines = [
             "# VVTerm tmux configuration",
             "# Auto-generated by VVTerm - changes will be overwritten",
             "",
-            "# Keep locale variables so tmux knows UTF-8 is supported",
-            "set -ga update-environment \"LANG LC_ALL LC_CTYPE\"",
-            "",
-            "# Enable hyperlinks (OSC 8)",
-            "set -as terminal-features \",*:hyperlinks\"",
+            "# Preserve true-color and terminal metadata when attaching",
+        ]
+        lines.append(contentsOf: RemoteTerminalBootstrap.tmuxArrayOptionCommands(
+            option: "update-environment",
+            values: RemoteTerminalBootstrap.tmuxUpdateEnvironmentVariables()
+        ))
+        lines.append(contentsOf: RemoteTerminalBootstrap.tmuxEnvironmentCommands())
+        lines.append(contentsOf: RemoteTerminalBootstrap.tmuxArrayOptionCommands(
+            option: "terminal-features",
+            values: ["*:hyperlinks"]
+        ))
+        lines.append(contentsOf: RemoteTerminalBootstrap.tmuxArrayOptionCommands(
+            option: "terminal-overrides",
+            values: ["\(RemoteTerminalBootstrap.terminalType):RGB"]
+        ))
+        lines.append(contentsOf: [
             "",
             "# Allow OSC sequences to pass through (title updates, etc.)",
             "set -g allow-passthrough on",
@@ -568,8 +549,7 @@ actor RemoteTmuxManager {
             "set -g mouse on",
             "",
             "# Set default terminal with true color support",
-            "set -g default-terminal \"xterm-256color\"",
-            "set -ag terminal-overrides \",xterm-256color:RGB\"",
+            "set -g default-terminal \"\(RemoteTerminalBootstrap.terminalType)\"",
             "",
             "# Selection highlighting in copy-mode (from theme: \(themeName))",
             "set -g mode-style \"\(modeStyle)\"",
@@ -577,7 +557,7 @@ actor RemoteTmuxManager {
             "# Smart mouse scroll: copy-mode at shell, passthrough in TUI apps",
             "bind -n WheelUpPane if -F '#{||:#{mouse_any_flag},#{alternate_on}}' 'send-keys -M' 'copy-mode -eH; send-keys -M'",
             "bind -n WheelDownPane if -F '#{||:#{mouse_any_flag},#{alternate_on}}' 'send-keys -M' 'send-keys -M'"
-        ]
+        ])
         let quotedLines = lines.map { "\"\(escapeForDoubleQuotes($0))\"" }.joined(separator: " ")
         return "mkdir -p \(configDirectory); printf '%s\\n' \(quotedLines) > \(configPath)"
     }

@@ -12,8 +12,8 @@ actor RemoteMoshManager {
 
     func isMoshServerAvailable(using client: SSHClient) async -> Bool {
         let okMarker = "__VVTERM_MOSH_OK__"
-        let body = "\(shellPathExport()); if command -v mosh-server >/dev/null 2>&1; then printf '\(okMarker)'; else printf '__VVTERM_MOSH_NO__'; fi"
-        let command = "sh -lc \(shellQuoted(body))"
+        let body = "\(RemoteTerminalBootstrap.shellPathExport()); if command -v mosh-server >/dev/null 2>&1; then printf '\(okMarker)'; else printf '__VVTERM_MOSH_NO__'; fi"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         let output = try? await client.execute(command, timeout: availabilityTimeout)
         return output?.contains(okMarker) == true
     }
@@ -23,19 +23,19 @@ actor RemoteMoshManager {
         startCommand: String?,
         portRange: ClosedRange<Int> = 60001...61000
     ) async throws -> MoshServerConnectInfo {
-        let resolvedStartup = resolveStartupCommand(startCommand)
+        let resolvedStartup = RemoteTerminalBootstrap.moshStartupScript(startCommand: startCommand)
         let body = """
-        \(shellPathExport());
+        \(RemoteTerminalBootstrap.shellPathExport());
         \(utf8LocaleExportScript());
-        mosh-server new -s -c 256 -p \(portRange.lowerBound):\(portRange.upperBound) -- /bin/sh -lc \(shellQuoted(resolvedStartup)) 2>&1
+        mosh-server new -s -c 256 -p \(portRange.lowerBound):\(portRange.upperBound) -- /bin/sh -lc \(RemoteTerminalBootstrap.shellQuoted(resolvedStartup)) 2>&1
         """
-        let command = "sh -lc \(shellQuoted(body))"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(body))"
         let output = try await client.execute(command, timeout: bootstrapTimeout)
         return try parseConnectInfo(from: output)
     }
 
     func installMoshServer(using client: SSHClient) async throws {
-        let command = "sh -lc \(shellQuoted(installScript()))"
+        let command = "sh -lc \(RemoteTerminalBootstrap.shellQuoted(installScript()))"
         let output = try await client.execute(command, timeout: installTimeout)
         guard output.contains(Self.installSuccessMarker) else {
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,7 +80,7 @@ actor RemoteMoshManager {
 
     nonisolated func installScript() -> String {
         """
-        \(shellPathExport());
+        \(RemoteTerminalBootstrap.shellPathExport());
         if command -v mosh-server >/dev/null 2>&1; then printf '\(Self.installSuccessMarker)'; exit 0; fi;
         if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; else SUDO=""; fi;
         OS_NAME="$(uname -s)";
@@ -123,51 +123,6 @@ actor RemoteMoshManager {
         """
     }
 
-    nonisolated func resolveStartupCommand(_ command: String?) -> String {
-        let trimmed = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmed.isEmpty {
-            return "exec \"${SHELL:-/bin/sh}\" -l"
-        }
-        return unwrapShellLaunchIfNeeded(trimmed) ?? trimmed
-    }
-
-    nonisolated private func unwrapShellLaunchIfNeeded(_ command: String) -> String? {
-        let prefixes = ["sh -lc ", "/bin/sh -lc "]
-        guard let prefix = prefixes.first(where: { command.hasPrefix($0) }) else {
-            return nil
-        }
-
-        let payload = String(command.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !payload.isEmpty else { return nil }
-
-        if payload.hasPrefix("'"), payload.hasSuffix("'"), payload.count >= 2 {
-            let start = payload.index(after: payload.startIndex)
-            let end = payload.index(before: payload.endIndex)
-            let quoted = String(payload[start..<end])
-            return quoted.replacingOccurrences(of: "'\\''", with: "'")
-        }
-
-        if payload.hasPrefix("\""), payload.hasSuffix("\""), payload.count >= 2 {
-            let start = payload.index(after: payload.startIndex)
-            let end = payload.index(before: payload.endIndex)
-            let quoted = String(payload[start..<end])
-            let step1 = quoted.replacingOccurrences(of: "\\\"", with: "\"")
-            let step2 = step1.replacingOccurrences(of: "\\\\", with: "\\")
-            return step2
-        }
-
-        return payload
-    }
-
-    nonisolated private func shellQuoted(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
-    }
-
-    nonisolated private func shellPathExport() -> String {
-        "export PATH=\"\(shellPathValue())\""
-    }
-
     nonisolated func utf8LocaleExportScript() -> String {
         """
         VVTERM_UTF8_LOCALE="";
@@ -179,23 +134,5 @@ actor RemoteMoshManager {
         export LC_ALL="$VVTERM_UTF8_LOCALE";
         export LC_CTYPE="$VVTERM_UTF8_LOCALE"
         """
-    }
-
-    nonisolated private func shellPathValue() -> String {
-        let paths = [
-            "$HOME/.local/bin",
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "/usr/local/sbin",
-            "/opt/local/bin",
-            "/opt/local/sbin",
-            "/snap/bin",
-            "/usr/bin",
-            "/bin",
-            "/usr/sbin",
-            "/sbin"
-        ]
-        return paths.joined(separator: ":") + ":$PATH"
     }
 }

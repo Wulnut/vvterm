@@ -1098,11 +1098,29 @@ actor SSHSession {
             throw SSHError.channelOpenFailed
         }
 
+        // Mirror Ghostty's SSH behavior so remote prompts/themes can detect
+        // 24-bit color support without changing TERM compatibility.
+        for variable in RemoteTerminalBootstrap.terminalEnvironment() {
+            let result = libssh2_channel_setenv_ex(
+                channel,
+                variable.name,
+                UInt32(variable.name.utf8.count),
+                variable.value,
+                UInt32(variable.value.utf8.count)
+            )
+
+            // Many SSH servers gate env forwarding via AcceptEnv; continue when
+            // a variable is rejected so interactive sessions still start.
+            if result != 0 {
+                logger.debug("Remote SSH server rejected env \(variable.name, privacy: .public): \(result)")
+            }
+        }
+
         // Request PTY
         let ptyResult = libssh2_channel_request_pty_ex(
             channel,
-            "xterm-256color",
-            UInt32("xterm-256color".count),
+            RemoteTerminalBootstrap.terminalType,
+            UInt32(RemoteTerminalBootstrap.terminalType.utf8.count),
             nil,
             0,
             Int32(cols),
@@ -1116,21 +1134,22 @@ actor SSHSession {
             throw SSHError.shellRequestFailed
         }
 
-        // Start shell (use process_startup since shell macro not available in Swift)
-        let trimmedCommand = startupCommand?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let command = trimmedCommand, !command.isEmpty {
+        // Route shell startup through a single bootstrap helper so SSH, tmux,
+        // and mosh share the same environment and quoting behavior.
+        switch RemoteTerminalBootstrap.launchPlan(startupCommand: startupCommand) {
+        case .shell:
+            let shellResult = libssh2_channel_process_startup(channel, "shell", 5, nil, 0)
+            guard shellResult == 0 else {
+                libssh2_channel_close(channel)
+                libssh2_channel_free(channel)
+                throw SSHError.shellRequestFailed
+            }
+        case .exec(let command):
             let commandLength = UInt32(command.utf8.count)
             let execResult: Int32 = command.withCString { ptr in
                 libssh2_channel_process_startup(channel, "exec", 4, ptr, commandLength)
             }
             guard execResult == 0 else {
-                libssh2_channel_close(channel)
-                libssh2_channel_free(channel)
-                throw SSHError.shellRequestFailed
-            }
-        } else {
-            let shellResult = libssh2_channel_process_startup(channel, "shell", 5, nil, 0)
-            guard shellResult == 0 else {
                 libssh2_channel_close(channel)
                 libssh2_channel_free(channel)
                 throw SSHError.shellRequestFailed
@@ -1156,7 +1175,6 @@ actor SSHSession {
 
         return ShellHandle(id: shellId, stream: stream)
     }
-
     private func startIOLoop() {
         guard ioTask == nil else { return }
         ioTask = Task { [weak self] in
