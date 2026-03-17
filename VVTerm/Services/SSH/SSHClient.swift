@@ -464,18 +464,35 @@ actor SSHClient {
         }
 
         let shellId = UUID()
+        let pendingOps = await moshSession.drainHostOps()
+        if !pendingOps.isEmpty {
+            logger.info("Mosh: \(pendingOps.count) pending host ops before stream creation")
+        }
         let hostOpStream = await moshSession.hostOpStream()
+        let moshLogger = logger
         let stream = AsyncStream<Data> { continuation in
+            // Replay any ops that arrived before the stream was created
+            for op in pendingOps {
+                if case .hostBytes(let bytes) = op {
+                    continuation.yield(bytes)
+                }
+            }
             let streamTask = Task { [weak self] in
+                var totalBytes = 0
                 for await hostOp in hostOpStream {
                     guard !Task.isCancelled else { break }
                     switch hostOp {
                     case .hostBytes(let bytes):
+                        totalBytes += bytes.count
+                        if totalBytes <= 1000 {
+                            moshLogger.debug("Mosh hostBytes: \(bytes.count) bytes (total: \(totalBytes))")
+                        }
                         continuation.yield(bytes)
                     case .echoAck, .resize:
                         break
                     }
                 }
+                moshLogger.info("Mosh stream ended, total bytes delivered: \(totalBytes)")
                 continuation.finish()
                 await self?.closeShell(shellId)
             }
