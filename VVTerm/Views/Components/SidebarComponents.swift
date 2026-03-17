@@ -68,28 +68,42 @@ struct ServerRow: View {
                         Label("Unlock with Pro", systemImage: "lock.open.fill")
                     }
                     if let onMove {
-                        Button("Move") { onMove(server) }
+                        Button { onMove(server) } label: {
+                            Label("Move to Workspace", systemImage: "arrow.turn.right.up")
+                        }
                     }
-                    Button("Edit") { onEdit(server) }
-                    Button("Remove", role: .destructive) {
+                    Button { onEdit(server) } label: {
+                        Label("Server Settings", systemImage: "slider.horizontal.3")
+                    }
+                    Button(role: .destructive) {
                         Task { try? await ServerManager.shared.deleteServer(server) }
+                    } label: {
+                        Label("Delete Server", systemImage: "trash")
                     }
                 } else {
-                    Button("Connect") {
+                    Button {
                         if let onConnect {
                             onConnect(server)
                         } else {
                             tabManager.selectedViewByServer[server.id] = "stats"
                             tabManager.connectedServerIds.insert(server.id)
                         }
+                    } label: {
+                        Label("Open Connection", systemImage: "point.forward.to.point.capsulepath.fill")
                     }
                     if let onMove {
-                        Button("Move") { onMove(server) }
+                        Button { onMove(server) } label: {
+                            Label("Move to Workspace", systemImage: "arrow.turn.right.up")
+                        }
                     }
-                    Button("Edit") { onEdit(server) }
+                    Button { onEdit(server) } label: {
+                        Label("Server Settings", systemImage: "slider.horizontal.3")
+                    }
                     Divider()
-                    Button("Remove", role: .destructive) {
+                    Button(role: .destructive) {
                         Task { try? await ServerManager.shared.deleteServer(server) }
+                    } label: {
+                        Label("Delete Server", systemImage: "trash")
                     }
                 }
             }
