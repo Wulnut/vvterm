@@ -69,7 +69,6 @@ struct ShellHandle {
 actor SSHClient {
     private struct MoshShellRuntime {
         let session: MoshClientSession
-        var writeChain: Task<Void, Never>?
     }
 
     private var session: SSHSession?
@@ -309,20 +308,9 @@ actor SSHClient {
             throw SSHError.notConnected
         }
 
-        if var runtime = moshShells[shellId] {
-            let previousWrite = runtime.writeChain
-            let moshSession = runtime.session
-            let writeTask = Task(priority: .userInitiated) {
-                await previousWrite?.value
-                try Task.checkCancellation()
-                try await moshSession.enqueue(.keystrokes(data))
-            }
-            runtime.writeChain = Task(priority: .userInitiated) {
-                _ = try? await writeTask.value
-            }
-            moshShells[shellId] = runtime
+        if let runtime = moshShells[shellId] {
             do {
-                try await writeTask.value
+                try await runtime.session.enqueue(.keystrokes(data))
                 return
             } catch {
                 throw SSHError.moshSessionFailed(error.localizedDescription)
@@ -481,9 +469,11 @@ actor SSHClient {
             let streamTask = Task { [weak self] in
                 for await hostOp in hostOpStream {
                     guard !Task.isCancelled else { break }
-                    guard let self else { break }
-                    if let bytes = await self.consumeMoshHostOp(hostOp, for: shellId) {
+                    switch hostOp {
+                    case .hostBytes(let bytes):
                         continuation.yield(bytes)
+                    case .echoAck, .resize:
+                        break
                     }
                 }
                 continuation.finish()
@@ -504,18 +494,6 @@ actor SSHClient {
             stream: stream,
             transport: .mosh
         )
-    }
-
-    private func consumeMoshHostOp(_ hostOp: MoshHostOp, for shellId: UUID) -> Data? {
-        guard moshShells[shellId] != nil else { return nil }
-        switch hostOp {
-        case .echoAck(_):
-            return nil
-        case .resize:
-            return nil
-        case .hostBytes(let bytes):
-            return bytes
-        }
     }
 
     private nonisolated static func runWithTimeout<T: Sendable>(
