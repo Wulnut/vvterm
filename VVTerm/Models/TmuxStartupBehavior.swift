@@ -7,13 +7,10 @@ enum TmuxStartupBehavior: String, Codable, CaseIterable, Identifiable {
     case askEveryTime
     /// Start shell without tmux.
     case skipTmux
-    /// Attach to a remembered tmux session name.
-    case rememberedSession
 
     var id: String { rawValue }
 
-    static let globalConfigCases: [TmuxStartupBehavior] = [.vvtermManaged, .askEveryTime, .skipTmux]
-    static let serverConfigCases: [TmuxStartupBehavior] = [.vvtermManaged, .askEveryTime, .skipTmux, .rememberedSession]
+    static let configCases = allCases
 
     var displayName: String {
         switch self {
@@ -23,8 +20,6 @@ enum TmuxStartupBehavior: String, Codable, CaseIterable, Identifiable {
             return String(localized: "Ask every time")
         case .skipTmux:
             return String(localized: "Skip tmux")
-        case .rememberedSession:
-            return String(localized: "Use remembered session")
         }
     }
 
@@ -36,8 +31,6 @@ enum TmuxStartupBehavior: String, Codable, CaseIterable, Identifiable {
             return String(localized: "Show a prompt on each new tab or split so you can choose a session.")
         case .skipTmux:
             return String(localized: "Start a normal shell without tmux session persistence.")
-        case .rememberedSession:
-            return String(localized: "Automatically attach to the last tmux session you selected.")
         }
     }
 }

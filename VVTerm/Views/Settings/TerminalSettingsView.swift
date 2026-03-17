@@ -239,7 +239,7 @@ struct TerminalSettingsView: View {
 
             if tmuxEnabledDefault {
                 Picker("On connect", selection: tmuxStartupBehaviorDefaultBinding) {
-                    ForEach(TmuxStartupBehavior.globalConfigCases) { behavior in
+                    ForEach(TmuxStartupBehavior.configCases) { behavior in
                         Text(behavior.displayName).tag(behavior)
                     }
                 }

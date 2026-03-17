@@ -77,7 +77,6 @@ extension Server {
         } else {
             self.tmuxStartupBehaviorOverride = nil
         }
-        self.tmuxRememberedSessionName = record["tmuxRememberedSessionName"] as? String
         self.createdAt = record["createdAt"] as? Date ?? Date()
         self.updatedAt = record["updatedAt"] as? Date ?? Date()
 
@@ -133,11 +132,6 @@ extension Server {
             record["tmuxStartupBehaviorOverride"] = tmuxStartupBehaviorOverride.rawValue
         } else {
             record["tmuxStartupBehaviorOverride"] = nil
-        }
-        if let tmuxRememberedSessionName, !tmuxRememberedSessionName.isEmpty {
-            record["tmuxRememberedSessionName"] = tmuxRememberedSessionName
-        } else {
-            record["tmuxRememberedSessionName"] = nil
         }
         record["createdAt"] = createdAt
         record["updatedAt"] = Date()

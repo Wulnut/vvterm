@@ -764,7 +764,7 @@ struct ServerFormSheet: View {
 
             if tmuxEnabled {
                 Picker("On connect", selection: $tmuxStartupBehavior) {
-                    ForEach(TmuxStartupBehavior.serverConfigCases) { behavior in
+                    ForEach(TmuxStartupBehavior.configCases) { behavior in
                         Text(behavior.displayName).tag(behavior)
                     }
                 }
@@ -1013,7 +1013,6 @@ struct ServerFormSheet: View {
             requiresBiometricUnlock: requiresBiometricUnlock,
             tmuxEnabledOverride: tmuxEnabled,
             tmuxStartupBehaviorOverride: tmuxStartupBehavior,
-            tmuxRememberedSessionName: server?.tmuxRememberedSessionName,
             createdAt: createdAt
         )
     }

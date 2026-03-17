@@ -407,7 +407,6 @@ final class ServerManager: ObservableObject {
                     requiresBiometricUnlock: servers[i].requiresBiometricUnlock,
                     tmuxEnabledOverride: servers[i].tmuxEnabledOverride,
                     tmuxStartupBehaviorOverride: servers[i].tmuxStartupBehaviorOverride,
-                    tmuxRememberedSessionName: servers[i].tmuxRememberedSessionName,
                     createdAt: servers[i].createdAt,
                     updatedAt: Date()
                 )
@@ -482,7 +481,6 @@ final class ServerManager: ObservableObject {
             requiresBiometricUnlock: server.requiresBiometricUnlock,
             tmuxEnabledOverride: server.tmuxEnabledOverride,
             tmuxStartupBehaviorOverride: server.tmuxStartupBehaviorOverride,
-            tmuxRememberedSessionName: server.tmuxRememberedSessionName,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -544,7 +542,6 @@ final class ServerManager: ObservableObject {
             requiresBiometricUnlock: server.requiresBiometricUnlock,
             tmuxEnabledOverride: server.tmuxEnabledOverride,
             tmuxStartupBehaviorOverride: server.tmuxStartupBehaviorOverride,
-            tmuxRememberedSessionName: server.tmuxRememberedSessionName,
             createdAt: server.createdAt,
             updatedAt: Date()
         )
@@ -603,7 +600,6 @@ final class ServerManager: ObservableObject {
             requiresBiometricUnlock: server.requiresBiometricUnlock,
             tmuxEnabledOverride: server.tmuxEnabledOverride,
             tmuxStartupBehaviorOverride: server.tmuxStartupBehaviorOverride,
-            tmuxRememberedSessionName: server.tmuxRememberedSessionName,
             createdAt: server.createdAt,
             updatedAt: Date()
         )

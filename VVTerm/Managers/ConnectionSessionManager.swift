@@ -336,8 +336,7 @@ final class ConnectionSessionManager: ObservableObject {
            let client = sshClient(for: sourceSession),
            let path = await RemoteTmuxManager.shared.currentPath(
                sessionName: tmuxResolver.sessionName(for: sourceSessionId),
-               using: client,
-               scope: tmuxSocketScope(for: sourceSessionId)
+               using: client
            ) {
             sourceWorkingDirectory = path
             if let index = sessions.firstIndex(where: { $0.id == sourceSessionId }) {
@@ -1116,16 +1115,10 @@ private struct ConnectionSessionsSnapshot: Codable {
 // MARK: - tmux Integration
 
 extension ConnectionSessionManager {
-    private func tmuxSocketScope(for sessionId: UUID) -> TmuxSocketScope {
-        let ownership = tmuxResolver.sessionOwnership[sessionId] ?? .managed
-        return ownership == .external ? .userDefault : .managed
-    }
-
     private func resolveTmuxWorkingDirectory(for sessionId: UUID, using client: SSHClient) async -> String {
         if let path = await RemoteTmuxManager.shared.currentPath(
             sessionName: tmuxResolver.sessionName(for: sessionId),
-            using: client,
-            scope: tmuxSocketScope(for: sessionId)
+            using: client
         ) {
             if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
                 sessions[index].workingDirectory = path
@@ -1201,7 +1194,7 @@ extension ConnectionSessionManager {
             break
         case .createManaged:
             names.insert(tmuxResolver.sessionName(for: sessionId))
-        case .attachExisting(let sessionName, _):
+        case .attachExisting(let sessionName):
             names.insert(sessionName)
         }
         return names
@@ -1237,17 +1230,6 @@ extension ConnectionSessionManager {
             return
         }
 
-        // Send the pending tmux command IMMEDIATELY if available (already prepared by tmuxStartupPlan).
-        // The slow SSH operations (availability check, cleanup, config) run AFTER the command is sent
-        // so the user sees tmux start without delay.
-        if let pending = tmuxResolver.pendingPostShellCommands.removeValue(forKey: sessionId) {
-            await RemoteTmuxManager.shared.sendScript(pending, using: client, shellId: shellId)
-
-            let status = await MainActor.run { self.currentTmuxStatus(for: sessionId) }
-            await MainActor.run { self.updateTmuxStatus(sessionId, status: status) }
-            return
-        }
-
         let tmuxAvailable = await RemoteTmuxManager.shared.isTmuxAvailable(using: client)
         guard tmuxAvailable else {
             await MainActor.run {
@@ -1260,8 +1242,7 @@ extension ConnectionSessionManager {
         let selection: TmuxAttachSelection
         if tmuxResolver.sessionOwnership[sessionId] == .external {
             selection = .attachExisting(
-                sessionName: tmuxResolver.sessionName(for: sessionId),
-                scope: .userDefault
+                sessionName: tmuxResolver.sessionName(for: sessionId)
             )
         } else {
             selection = .createManaged
@@ -1304,8 +1285,6 @@ extension ConnectionSessionManager {
         serverId: UUID,
         client: SSHClient
     ) async -> (command: String?, skipTmuxLifecycle: Bool) {
-        tmuxResolver.pendingPostShellCommands.removeValue(forKey: sessionId)
-
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
             tmuxResolver.clearAttachmentState(for: sessionId)
             updateTmuxStatus(sessionId, status: .off)
@@ -1347,17 +1326,16 @@ extension ConnectionSessionManager {
         case .skipTmux:
             return (nil, true)
         case .createManaged:
-            tmuxResolver.pendingPostShellCommands[sessionId] = RemoteTmuxManager.shared.attachExecCommand(
+            let tmuxCommand = RemoteTmuxManager.shared.attachCommand(
                 sessionName: tmuxResolver.sessionName(for: sessionId),
                 workingDirectory: workingDirectory
             )
-            return (nil, false)
-        case .attachExisting(let sessionName, let scope):
-            tmuxResolver.pendingPostShellCommands[sessionId] = RemoteTmuxManager.shared.attachExistingExecCommand(
-                sessionName: sessionName,
-                scope: scope
+            return (tmuxCommand, true)
+        case .attachExisting(let sessionName):
+            let tmuxCommand = RemoteTmuxManager.shared.attachExistingCommand(
+                sessionName: sessionName
             )
-            return (nil, false)
+            return (tmuxCommand, true)
         }
     }
 
@@ -1410,7 +1388,7 @@ extension ConnectionSessionManager {
 
         let sessionName = tmuxResolver.sessionName(for: sessionId)
         Task.detached { [client = registration.client, sessionName] in
-            await RemoteTmuxManager.shared.killSession(named: sessionName, using: client, scope: .managed)
+            await RemoteTmuxManager.shared.killSession(named: sessionName, using: client)
         }
     }
 

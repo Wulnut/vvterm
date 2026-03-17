@@ -595,11 +595,6 @@ final class TerminalTabManager: ObservableObject {
         return names
     }
 
-    private func tmuxSocketScope(for paneId: UUID) -> TmuxSocketScope {
-        let ownership = tmuxResolver.sessionOwnership[paneId] ?? .managed
-        return ownership == .external ? .userDefault : .managed
-    }
-
     private func tmuxSessionNamesToKeep(
         for serverId: UUID,
         paneId: UUID,
@@ -611,7 +606,7 @@ final class TerminalTabManager: ObservableObject {
             break
         case .createManaged:
             names.insert(tmuxResolver.sessionName(for: paneId))
-        case .attachExisting(let sessionName, _):
+        case .attachExisting(let sessionName):
             names.insert(sessionName)
         }
         return names
@@ -626,8 +621,7 @@ final class TerminalTabManager: ObservableObject {
         if let seedPaneId = paneStates[paneId]?.seedPaneId,
            let path = await RemoteTmuxManager.shared.currentPath(
                sessionName: tmuxResolver.sessionName(for: seedPaneId),
-               using: client,
-               scope: tmuxSocketScope(for: seedPaneId)
+               using: client
            ) {
             paneStates[paneId]?.workingDirectory = path
             return path
@@ -635,8 +629,7 @@ final class TerminalTabManager: ObservableObject {
 
         if let path = await RemoteTmuxManager.shared.currentPath(
             sessionName: tmuxResolver.sessionName(for: paneId),
-            using: client,
-            scope: tmuxSocketScope(for: paneId)
+            using: client
         ) {
             paneStates[paneId]?.workingDirectory = path
             return path
@@ -711,8 +704,7 @@ final class TerminalTabManager: ObservableObject {
         let selection: TmuxAttachSelection
         if tmuxResolver.sessionOwnership[paneId] == .external {
             selection = .attachExisting(
-                sessionName: tmuxResolver.sessionName(for: paneId),
-                scope: .userDefault
+                sessionName: tmuxResolver.sessionName(for: paneId)
             )
         } else {
             selection = .createManaged
@@ -738,19 +730,13 @@ final class TerminalTabManager: ObservableObject {
 
         await RemoteTmuxManager.shared.prepareConfig(using: client)
 
-        let command: String
-        if let pending = tmuxResolver.pendingPostShellCommands.removeValue(forKey: paneId) {
-            command = pending
-        } else {
-            let workingDirectory = await resolveTmuxWorkingDirectory(for: paneId, using: client)
-            guard let rebuilt = tmuxResolver.buildAttachExecCommand(
-                for: paneId,
-                selection: selection,
-                workingDirectory: workingDirectory
-            ) else {
-                return
-            }
-            command = rebuilt
+        let workingDirectory = await resolveTmuxWorkingDirectory(for: paneId, using: client)
+        guard let command = tmuxResolver.buildAttachExecCommand(
+            for: paneId,
+            selection: selection,
+            workingDirectory: workingDirectory
+        ) else {
+            return
         }
 
         await RemoteTmuxManager.shared.sendScript(command, using: client, shellId: shellId)
@@ -761,8 +747,6 @@ final class TerminalTabManager: ObservableObject {
         serverId: UUID,
         client: SSHClient
     ) async -> (command: String?, skipTmuxLifecycle: Bool) {
-        tmuxResolver.pendingPostShellCommands.removeValue(forKey: paneId)
-
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
             tmuxResolver.clearAttachmentState(for: paneId)
             updatePaneTmuxStatus(paneId, status: .off)
@@ -804,17 +788,16 @@ final class TerminalTabManager: ObservableObject {
         case .skipTmux:
             return (nil, true)
         case .createManaged:
-            tmuxResolver.pendingPostShellCommands[paneId] = RemoteTmuxManager.shared.attachExecCommand(
+            let tmuxCommand = RemoteTmuxManager.shared.attachCommand(
                 sessionName: tmuxResolver.sessionName(for: paneId),
                 workingDirectory: workingDirectory
             )
-            return (nil, false)
-        case .attachExisting(let sessionName, let scope):
-            tmuxResolver.pendingPostShellCommands[paneId] = RemoteTmuxManager.shared.attachExistingExecCommand(
-                sessionName: sessionName,
-                scope: scope
+            return (tmuxCommand, true)
+        case .attachExisting(let sessionName):
+            let tmuxCommand = RemoteTmuxManager.shared.attachExistingCommand(
+                sessionName: sessionName
             )
-            return (nil, false)
+            return (tmuxCommand, true)
         }
     }
 
@@ -867,7 +850,7 @@ final class TerminalTabManager: ObservableObject {
 
         let sessionName = tmuxResolver.sessionName(for: paneId)
         Task.detached { [client = registration.client, sessionName] in
-            await RemoteTmuxManager.shared.killSession(named: sessionName, using: client, scope: .managed)
+            await RemoteTmuxManager.shared.killSession(named: sessionName, using: client)
         }
     }
 
