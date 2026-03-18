@@ -36,11 +36,14 @@ enum MoshFallbackReason: String, Codable, Hashable, Sendable {
     case serverMissing
     case bootstrapFailed
     case sessionFailed
+    case unsupportedRemoteCapabilities
 
     var bannerMessage: String {
         switch self {
         case .serverMissing:
             return String(localized: "Using SSH fallback for this session (mosh-server is missing).")
+        case .unsupportedRemoteCapabilities:
+            return String(localized: "Using SSH fallback for this session (Mosh is not supported by the resolved remote environment).")
         case .bootstrapFailed, .sessionFailed:
             return String(localized: "Using SSH fallback for this session.")
         }
@@ -78,6 +81,7 @@ actor SSHClient {
     private var pendingConnectSession: SSHSession?
     private var connectionKey: String?
     private var connectedServer: Server?
+    private var resolvedRemoteEnvironment: RemoteEnvironment?
     private var moshShells: [UUID: MoshShellRuntime] = [:]
     private let cloudflareTransportManager = CloudflareTransportManager()
     private let moshStartupTimeout: Duration = .seconds(8)
@@ -191,6 +195,7 @@ actor SSHClient {
             self.session = session
             self._sessionForAbort = session
             self.connectedServer = server
+            self.resolvedRemoteEnvironment = nil
             startKeepAlive()
             connectTask = nil
             logger.info("Connected to \(server.host)")
@@ -202,6 +207,7 @@ actor SSHClient {
             self.session = nil
             self._sessionForAbort = nil
             self.connectedServer = nil
+            self.resolvedRemoteEnvironment = nil
             await disconnectCloudflareTransport(reason: "connect failure")
             if server.connectionMode == .cloudflare,
                case SSHError.connectionFailed(let message) = error,
@@ -237,6 +243,7 @@ actor SSHClient {
         session = nil
         _sessionForAbort = nil
         connectedServer = nil
+        resolvedRemoteEnvironment = nil
         activeSession?.abort()
         await disconnectSSHSession(activeSession)
         await disconnectCloudflareTransport(reason: "client disconnect")
@@ -260,6 +267,31 @@ actor SSHClient {
         }
     }
 
+    func remoteEnvironment(forceRefresh: Bool = false) async -> RemoteEnvironment {
+        if !forceRefresh, let resolvedRemoteEnvironment {
+            return resolvedRemoteEnvironment
+        }
+
+        let environment = await RemoteEnvironmentResolver.resolve(using: self)
+        resolvedRemoteEnvironment = environment
+        logger.info(
+            "Resolved remote environment [platform: \(environment.platform.rawValue, privacy: .public), shell: \(environment.shellProfile.family.rawValue, privacy: .public), active: \(environment.activeShellName ?? "unknown", privacy: .public)]"
+        )
+        return environment
+    }
+
+    func remotePlatform(forceRefresh: Bool = false) async -> RemotePlatform {
+        await remoteEnvironment(forceRefresh: forceRefresh).platform
+    }
+
+    func supportsTmuxRuntime() async -> Bool {
+        await remoteEnvironment().supportsTmuxRuntime
+    }
+
+    func supportsMoshRuntime() async -> Bool {
+        await remoteEnvironment().supportsMoshRuntime
+    }
+
     // MARK: - Shell
 
     func startShell(cols: Int = 80, rows: Int = 24, startupCommand: String? = nil) async throws -> ShellHandle {
@@ -268,12 +300,34 @@ actor SSHClient {
         }
 
         let connectionMode = connectedServer?.connectionMode ?? .standard
+        let environment = await remoteEnvironment()
         if connectionMode != .mosh {
-            let sshShell = try await session.startShell(cols: cols, rows: rows, startupCommand: startupCommand)
+            let sshShell = try await session.startShell(
+                cols: cols,
+                rows: rows,
+                startupCommand: startupCommand,
+                environment: environment
+            )
             return ShellHandle(
                 id: sshShell.id,
                 stream: sshShell.stream,
                 transport: .ssh
+            )
+        }
+
+        guard environment.supportsMoshRuntime else {
+            logger.warning("Mosh requested, but remote environment does not support Mosh runtime. Falling back to SSH.")
+            let fallbackShell = try await session.startShell(
+                cols: cols,
+                rows: rows,
+                startupCommand: startupCommand,
+                environment: environment
+            )
+            return ShellHandle(
+                id: fallbackShell.id,
+                stream: fallbackShell.stream,
+                transport: .sshFallback,
+                fallbackReason: .unsupportedRemoteCapabilities
             )
         }
 
@@ -288,7 +342,12 @@ actor SSHClient {
             logger.warning("Mosh startup failed, using SSH fallback: \(moshError.localizedDescription)")
 
             do {
-                let fallbackShell = try await session.startShell(cols: cols, rows: rows, startupCommand: startupCommand)
+                let fallbackShell = try await session.startShell(
+                    cols: cols,
+                    rows: rows,
+                    startupCommand: startupCommand,
+                    environment: environment
+                )
                 return ShellHandle(
                     id: fallbackShell.id,
                     stream: fallbackShell.stream,
@@ -1075,7 +1134,12 @@ actor SSHSession {
 
     // MARK: - Shell
 
-    func startShell(cols: Int, rows: Int, startupCommand: String? = nil) async throws -> ShellHandle {
+    func startShell(
+        cols: Int,
+        rows: Int,
+        startupCommand: String? = nil,
+        environment: RemoteEnvironment = .fallbackPOSIX
+    ) async throws -> ShellHandle {
         guard let session = libssh2Session else {
             throw SSHError.notConnected
         }
@@ -1136,7 +1200,7 @@ actor SSHSession {
 
         // Route shell startup through a single bootstrap helper so SSH, tmux,
         // and mosh share the same environment and quoting behavior.
-        switch RemoteTerminalBootstrap.launchPlan(startupCommand: startupCommand) {
+        switch RemoteTerminalBootstrap.launchPlan(startupCommand: startupCommand, environment: environment) {
         case .shell:
             let shellResult = libssh2_channel_process_startup(channel, "shell", 5, nil, 0)
             guard shellResult == 0 else {

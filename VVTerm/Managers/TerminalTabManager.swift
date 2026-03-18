@@ -692,6 +692,15 @@ final class TerminalTabManager: ObservableObject {
             return
         }
 
+        guard await client.supportsTmuxRuntime() else {
+            logger.info("Resolved remote environment does not support tmux runtime for pane \(paneId.uuidString, privacy: .public); using plain SSH shell")
+            await MainActor.run {
+                self.tmuxResolver.clearAttachmentState(for: paneId)
+                self.updatePaneTmuxStatus(paneId, status: .off)
+            }
+            return
+        }
+
         let tmuxAvailable = await RemoteTmuxManager.shared.isTmuxAvailable(using: client)
         guard tmuxAvailable else {
             await MainActor.run {
@@ -748,6 +757,12 @@ final class TerminalTabManager: ObservableObject {
         client: SSHClient
     ) async -> (command: String?, skipTmuxLifecycle: Bool) {
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
+            tmuxResolver.clearAttachmentState(for: paneId)
+            updatePaneTmuxStatus(paneId, status: .off)
+            return (nil, true)
+        }
+
+        guard await client.supportsTmuxRuntime() else {
             tmuxResolver.clearAttachmentState(for: paneId)
             updatePaneTmuxStatus(paneId, status: .off)
             return (nil, true)

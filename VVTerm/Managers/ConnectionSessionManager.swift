@@ -1230,6 +1230,15 @@ extension ConnectionSessionManager {
             return
         }
 
+        guard await client.supportsTmuxRuntime() else {
+            logger.info("Resolved remote environment does not support tmux runtime for session \(sessionId.uuidString, privacy: .public); using plain SSH shell")
+            await MainActor.run {
+                self.tmuxResolver.clearAttachmentState(for: sessionId)
+                self.updateTmuxStatus(sessionId, status: .off)
+            }
+            return
+        }
+
         let tmuxAvailable = await RemoteTmuxManager.shared.isTmuxAvailable(using: client)
         guard tmuxAvailable else {
             await MainActor.run {
@@ -1286,6 +1295,12 @@ extension ConnectionSessionManager {
         client: SSHClient
     ) async -> (command: String?, skipTmuxLifecycle: Bool) {
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
+            tmuxResolver.clearAttachmentState(for: sessionId)
+            updateTmuxStatus(sessionId, status: .off)
+            return (nil, true)
+        }
+
+        guard await client.supportsTmuxRuntime() else {
             tmuxResolver.clearAttachmentState(for: sessionId)
             updateTmuxStatus(sessionId, status: .off)
             return (nil, true)

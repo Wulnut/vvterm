@@ -1207,13 +1207,10 @@ struct SSHTerminalPaneWrapper: NSViewRepresentable {
         private func applyWorkingDirectoryIfNeeded(paneId: UUID, shellId: UUID, sshClient: SSHClient) async {
             guard TerminalTabManager.shared.shouldApplyWorkingDirectory(for: paneId) else { return }
             guard let cwd = TerminalTabManager.shared.workingDirectory(for: paneId) else { return }
-            guard let payload = cdCommand(for: cwd).data(using: .utf8) else { return }
+            let environment = await sshClient.remoteEnvironment()
+            guard environment.supportsWorkingDirectoryRestore else { return }
+            guard let payload = RemoteTerminalBootstrap.directoryChangeCommand(for: cwd, environment: environment).data(using: .utf8) else { return }
             try? await sshClient.write(payload, to: shellId)
-        }
-
-        private func cdCommand(for path: String) -> String {
-            let escaped = path.replacingOccurrences(of: "'", with: "'\"'\"'")
-            return "cd -- '\(escaped)'\n"
         }
 
         deinit {

@@ -118,8 +118,7 @@ final class ServerStatsCollector: ObservableObject {
         do {
             // Detect platform and create collector on first run
             if remotePlatform == .unknown {
-                let osType = try await client.execute("uname -s 2>/dev/null || ver 2>/dev/null || echo unknown")
-                remotePlatform = RemotePlatform.detect(from: osType)
+                remotePlatform = await client.remotePlatform()
                 platformCollector = remotePlatform.createCollector()
 
                 logger.info("Detected remote platform: \(self.remotePlatform.rawValue)")

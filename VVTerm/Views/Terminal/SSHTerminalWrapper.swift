@@ -537,15 +537,12 @@ struct SSHTerminalWrapper: NSViewRepresentable {
         private func applyWorkingDirectoryIfNeeded() async {
             guard ConnectionSessionManager.shared.shouldApplyWorkingDirectory(for: sessionId) else { return }
             guard let cwd = ConnectionSessionManager.shared.workingDirectory(for: sessionId) else { return }
-            guard let payload = cdCommand(for: cwd).data(using: .utf8) else { return }
+            let environment = await sshClient.remoteEnvironment()
+            guard environment.supportsWorkingDirectoryRestore else { return }
+            guard let payload = RemoteTerminalBootstrap.directoryChangeCommand(for: cwd, environment: environment).data(using: .utf8) else { return }
             if let shellId {
                 try? await sshClient.write(payload, to: shellId)
             }
-        }
-
-        private func cdCommand(for path: String) -> String {
-            let escaped = path.replacingOccurrences(of: "'", with: "'\"'\"'")
-            return "cd -- '\(escaped)'\n"
         }
 
         deinit {
@@ -892,15 +889,12 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
         private func applyWorkingDirectoryIfNeeded() async {
             guard ConnectionSessionManager.shared.shouldApplyWorkingDirectory(for: sessionId) else { return }
             guard let cwd = ConnectionSessionManager.shared.workingDirectory(for: sessionId) else { return }
-            guard let payload = cdCommand(for: cwd).data(using: .utf8) else { return }
+            let environment = await sshClient.remoteEnvironment()
+            guard environment.supportsWorkingDirectoryRestore else { return }
+            guard let payload = RemoteTerminalBootstrap.directoryChangeCommand(for: cwd, environment: environment).data(using: .utf8) else { return }
             if let shellId {
                 try? await sshClient.write(payload, to: shellId)
             }
-        }
-
-        private func cdCommand(for path: String) -> String {
-            let escaped = path.replacingOccurrences(of: "'", with: "'\"'\"'")
-            return "cd -- '\(escaped)'\n"
         }
 
         deinit {

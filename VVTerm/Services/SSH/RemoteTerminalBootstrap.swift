@@ -46,26 +46,73 @@ enum RemoteTerminalBootstrap {
         """
     }
 
-    static func launchPlan(startupCommand: String?, bundle: Bundle = .main) -> RemoteShellLaunchPlan {
-        let command = trimmedStartupCommand(startupCommand) ?? defaultLoginShellCommand()
-        let script = prefixedScript(for: command, bundle: bundle)
-        return .exec(wrapPOSIXShellCommand(script))
+    static func launchPlan(
+        startupCommand: String?,
+        environment: RemoteEnvironment = .fallbackPOSIX,
+        bundle: Bundle = .main
+    ) -> RemoteShellLaunchPlan {
+        environment.shellProfile.launchPlan(startupCommand: startupCommand, bundle: bundle)
     }
 
     static func moshStartupScript(startCommand: String?, bundle: Bundle = .main) -> String {
         let command = trimmedStartupCommand(startCommand)
             .flatMap { unwrapPOSIXShellInvocationIfNeeded($0) ?? $0 }
             ?? defaultLoginShellCommand()
-        return prefixedScript(for: command, bundle: bundle)
+        return prefixedPOSIXScript(for: command, bundle: bundle)
     }
 
     static func wrapPOSIXShellCommand(_ script: String) -> String {
         "/bin/sh -lc \(shellQuoted(script))"
     }
 
+    static func wrapPowerShellCommand(_ script: String, executableName: String) -> String {
+        let data = script.data(using: .utf16LittleEndian) ?? Data()
+        return "\(executableName) -NoLogo -NoProfile -EncodedCommand \(data.base64EncodedString())"
+    }
+
+    static func wrapCmdCommand(_ command: String) -> String {
+        let escaped = command.replacingOccurrences(of: "\"", with: "\"\"")
+        return "cmd.exe /d /s /k \"\(escaped)\""
+    }
+
+    static func wrapCmdExecCommand(_ command: String) -> String {
+        // Use a direct `cmd /c <command>` form for non-interactive execution.
+        // The quoted `/s /c "..."` form has proven unreliable for launching
+        // nested PowerShell commands over Windows OpenSSH exec channels.
+        "cmd.exe /d /c \(command)"
+    }
+
     static func shellQuoted(_ value: String) -> String {
         let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
         return "'\(escaped)'"
+    }
+
+    static func directoryChangeCommand(
+        for path: String,
+        environment: RemoteEnvironment = .fallbackPOSIX
+    ) -> String {
+        environment.shellProfile.directoryChangeCommand(for: path)
+    }
+
+    static func posixDirectoryChangeCommand(for path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "\n" }
+        return "cd -- \(shellQuoted(trimmed))\n"
+    }
+
+    static func powerShellDirectoryChangeCommand(for path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "\n" }
+        let resolved = normalizedWindowsPath(from: trimmed) ?? trimmed
+        return "Set-Location -LiteralPath \(powerShellQuoted(resolved))\n"
+    }
+
+    static func cmdDirectoryChangeCommand(for path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "\n" }
+        let resolved = normalizedWindowsPath(from: trimmed) ?? trimmed
+        let escaped = resolved.replacingOccurrences(of: "\"", with: "\"\"")
+        return "cd /d \"\(escaped)\"\r\n"
     }
 
     static func shellPathExport() -> String {
@@ -90,8 +137,15 @@ enum RemoteTerminalBootstrap {
         }
     }
 
-    private static func prefixedScript(for command: String, bundle: Bundle = .main) -> String {
+    static func prefixedPOSIXScript(for command: String, bundle: Bundle = .main) -> String {
         "\(environmentExportScript(bundle: bundle)) \(command)"
+    }
+
+    static func prefixedPowerShellScript(for command: String, bundle: Bundle = .main) -> String {
+        let environmentSetup = terminalEnvironment(bundle: bundle)
+            .map { "$env:\($0.name) = \(powerShellQuoted($0.value))" }
+            .joined(separator: "; ")
+        return "\(environmentSetup); \(command)"
     }
 
     private static func trimmedStartupCommand(_ startupCommand: String?) -> String? {
@@ -142,5 +196,64 @@ enum RemoteTerminalBootstrap {
             "/sbin"
         ]
         return paths.joined(separator: ":") + ":$PATH"
+    }
+
+    private static func powerShellQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "''"))'"
+    }
+
+    private static func normalizedWindowsPath(from path: String) -> String? {
+        if let directDriveLetter = directWindowsDriveLetter(in: path) {
+            let startIndex = path.index(path.startIndex, offsetBy: 2)
+            let suffix = startIndex < path.endIndex ? String(path[startIndex...]) : ""
+            let normalizedSuffix = suffix.replacingOccurrences(of: "/", with: "\\")
+            return "\(directDriveLetter):\(normalizedSuffix)"
+        }
+
+        if let oscDriveLetter = oscWindowsDriveLetter(in: path) {
+            let startIndex = path.index(path.startIndex, offsetBy: 3)
+            let suffix = startIndex < path.endIndex ? String(path[startIndex...]) : ""
+            let normalizedSuffix = suffix.replacingOccurrences(of: "/", with: "\\")
+            return "\(oscDriveLetter):\(normalizedSuffix)"
+        }
+
+        if path.hasPrefix("\\\\") {
+            return path
+        }
+
+        if path.hasPrefix("//") {
+            return "\\\\" + String(path.dropFirst(2)).replacingOccurrences(of: "/", with: "\\")
+        }
+
+        return nil
+    }
+
+    private static func directWindowsDriveLetter(in path: String) -> Character? {
+        let scalars = Array(path.unicodeScalars)
+        guard scalars.count >= 2 else { return nil }
+
+        func isLetter(_ scalar: UnicodeScalar) -> Bool {
+            (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+        }
+
+        if isLetter(scalars[0]), scalars[1] == ":" {
+            return Character(scalars[0])
+        }
+
+        return nil
+    }
+
+    private static func oscWindowsDriveLetter(in path: String) -> Character? {
+        let scalars = Array(path.unicodeScalars)
+        guard scalars.count >= 4 else { return nil }
+
+        func isLetter(_ scalar: UnicodeScalar) -> Bool {
+            (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+        }
+
+        guard scalars[0] == "/", isLetter(scalars[1]), scalars[2] == ":", scalars[3] == "/" else {
+            return nil
+        }
+        return Character(scalars[1])
     }
 }
