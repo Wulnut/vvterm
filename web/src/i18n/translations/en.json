@@ -1,89 +1,107 @@
 {
+  "header": {
+    "download": "Download"
+  },
   "hero": {
-    "title": "VVTerm",
-    "subtitle": "Your servers. Everywhere. The SSH terminal for iOS and macOS.",
-    "download": "Download",
-    "appStore": "App Store",
-    "viewOnGithub": "View on GitHub",
-    "requirements": "Requires iOS 16+ or macOS 13+ (Apple Silicon)"
+    "eyebrow": "Built for everyday remote work",
+    "eyebrowSequence": [
+      "Built for everyday remote work",
+      "SSH, Mosh, and Tailscale",
+      "Cloudflare Tunnel SSH included",
+      "Built on Ghostty terminal emulation",
+      "iCloud-synced server metadata",
+      "Keychain-secured credentials",
+      "Across iPhone, iPad, and Mac"
+    ],
+    "title": "A better native SSH client for Apple devices",
+    "subtitle": "Connect to servers, keep them organized, and stay in sync with Keychain-secured credentials across your iPhone, iPad, and Mac.",
+    "primaryCta": "Try VVTerm free",
+    "secondaryCta": "View on GitHub",
+    "meta": "Requires iOS 16+ or macOS 13+ (Apple Silicon). Free forever, or <span class=\"text-orange-500 font-medium\">buy lifetime</span>."
   },
-  "showcase": {
-    "mac": "Mac",
-    "ios": "iOS"
-  },
-  "features": {
-    "title": "Servers. Terminal. Everywhere.",
-    "servers": {
-      "title": "Server Management",
-      "desc": "Add, edit, and organize your servers. Group them into workspaces by client, project, or environment."
+  "why": {
+    "title": "Why choose VVTerm",
+    "subtitle": "A focused terminal app for people who want native Apple UX, modern SSH options, and pricing that still makes sense for solo users.",
+    "native": {
+      "title": "Native on iPhone, iPad, and Mac",
+      "desc": "One app designed specifically for Apple platforms, with interfaces that feel at home everywhere you use it."
     },
-    "terminal": {
-      "title": "GPU Terminal",
-      "desc": "Powered by libghostty. GPU-accelerated rendering, custom themes, and full terminal emulation."
-    },
-    "ssh": {
-      "title": "Flexible SSH Transport",
-      "desc": "Use standard SSH, Mosh (with automatic SSH fallback), Tailscale SSH, or Cloudflare Tunnel SSH."
+    "modern": {
+      "title": "Modern SSH included",
+      "desc": "Use standard SSH, Mosh, Tailscale SSH, or Cloudflare Tunnel SSH without juggling separate tools."
     },
     "sync": {
-      "title": "iCloud Sync",
-      "desc": "Server configurations sync across all your Apple devices. Connect from iPhone, iPad, or Mac."
+      "title": "iCloud sync without pain",
+      "desc": "Keep server metadata in sync automatically while credentials stay protected in Keychain."
     },
-    "workspaces": {
-      "title": "Workspaces",
-      "desc": "Organize servers by client, project, or team. Color-coded workspaces with environment filters."
-    },
-    "voice": {
-      "title": "Voice-to-Command",
-      "desc": "Speak commands instead of typing. On-device transcription with MLX Whisper."
-    },
-    "tabs": {
-      "title": "Multiple Connections",
-      "desc": "Connect to multiple servers simultaneously. Tab between connections without losing state."
-    },
-    "keychain": {
-      "title": "Keychain Security",
-      "desc": "Credentials stored securely in Apple Keychain. iCloud Keychain can sync them across devices when enabled."
+    "pricing": {
+      "title": "Fair pricing with lifetime",
+      "desc": "Free forever for personal use, Pro unlocks scale, and lifetime is there if subscriptions are not your thing."
     }
   },
-  "howItWorks": {
-    "title": "How it works",
-    "step1": {
-      "title": "Add your servers",
-      "desc": "Enter host, port, and credentials. SSH keys or passwords stored securely in Keychain. Organize into workspaces."
+  "features": {
+    "title": "Built for faster, simpler remote work",
+    "subtitle": "VVTerm is built to make everyday remote work feel faster, simpler, and more native on Apple devices.",
+    "rendering": {
+      "title": "Fast, accurate terminal rendering",
+      "desc": "Powered by libghostty for responsive drawing, correct terminal behavior, and a better feeling remote session."
     },
-    "step2": {
-      "title": "Connect from anywhere",
-      "desc": "Server configs sync via iCloud. Pick up your iPhone and connect to the same servers you use on your Mac."
+    "connect": {
+      "title": "Connect your way",
+      "desc": "Standard SSH when you want it, modern transports when you need them, with less setup friction."
     },
-    "step3": {
-      "title": "Manage with ease",
-      "desc": "Filter by environment (Production, Staging, Dev). Open multiple tabs. Run commands with voice input."
+    "pickup": {
+      "title": "Pick up on any device",
+      "desc": "Start on your Mac, reconnect from your phone, and keep your server list with you everywhere."
+    },
+    "organize": {
+      "title": "Organize servers simply",
+      "desc": "Workspaces, environments, and multiple tabs keep solo infrastructure manageable without team-platform overhead."
+    }
+  },
+  "useCases": {
+    "title": "Who it is for",
+    "subtitle": "Made for people who manage real machines, but do not want a bloated control plane just to open a terminal.",
+    "solo": {
+      "title": "Solo devs",
+      "desc": "For side projects, client work, and small production stacks that need a clean SSH workflow."
+    },
+    "homelab": {
+      "title": "Homelab users",
+      "desc": "Check containers, update machines, and jump between services from the Apple devices you already use."
+    },
+    "apple": {
+      "title": "Apple-first technical users",
+      "desc": "If you live on iPhone, iPad, and Mac, VVTerm fits that environment instead of fighting it."
+    },
+    "ai": {
+      "title": "Remote AI and server workflows",
+      "desc": "Check Codex, Claude Code, OpenCode, remote agents, GPU boxes, inference hosts, and automation servers when you are away from your desk."
     }
   },
   "pricing": {
-    "title": "Pricing",
-    "subtitle": "Start free, upgrade for unlimited",
+    "title": "Free forever. Upgrade when you need more.",
+    "subtitle": "Start free, upgrade when your setup grows, or buy lifetime and be done with it.",
     "free": {
       "name": "Free",
-      "description": "Get started",
+      "description": "Free forever for personal use",
       "price": "$0",
       "period": "/forever",
       "features": [
         "1 workspace",
         "3 servers",
         "1 connection tab",
-        "SSH, Mosh, Tailscale, and Cloudflare Tunnel modes",
-        "GPU terminal (libghostty)",
+        "SSH, Mosh, Tailscale SSH, and Cloudflare Tunnel SSH",
+        "Ghostty-powered terminal rendering",
         "iCloud sync",
         "Voice-to-command",
         "Keychain security"
       ],
-      "cta": "Download Free"
+      "cta": "Download VVTerm"
     },
     "pro": {
       "name": "Pro",
-      "description": "Unlimited everything",
+      "description": "Unlock scale when you need more",
       "monthly": {
         "price": "$6.49",
         "period": "/mo"
@@ -101,65 +119,82 @@
         "Priority support",
         "All future features"
       ],
-      "ctaMonthly": "Subscribe Monthly",
-      "ctaYearly": "Subscribe Yearly"
+      "ctaMonthly": "Upgrade monthly",
+      "ctaYearly": "Upgrade yearly"
     },
     "lifetime": {
       "name": "Lifetime",
-      "description": "One-time purchase",
+      "description": "Pay once and keep it simple",
       "price": "$29.99",
-      "badge": "Best Value",
+      "badge": "Lifetime available",
       "features": [
         "Everything in Pro",
-        "Pay once, own forever",
+        "One-time purchase",
         "All future updates",
         "Priority support forever"
       ],
-      "cta": "Buy Lifetime",
-      "guarantee": "Refunds handled by Apple (App Store)"
+      "cta": "Buy lifetime",
+      "guarantee": "Refunds are handled by Apple through the App Store"
     }
   },
   "faq": {
     "title": "Frequently asked questions",
     "q1": {
       "question": "What is VVTerm?",
-      "answer": "VVTerm is an SSH terminal app for iOS and macOS. It lets you manage and connect to remote servers (VPS, cloud instances, home lab) with iCloud sync across all your Apple devices."
+      "answer": "VVTerm is an SSH terminal app for iOS and macOS. It lets you manage and connect to remote servers with iCloud sync across your Apple devices."
     },
     "q2": {
       "question": "How does iCloud sync work?",
-      "answer": "Server configurations (name, host, port, username) sync via iCloud to all your devices. Passwords and SSH keys are stored in Apple Keychain and sync via iCloud Keychain when iCloud sync is enabled."
+      "answer": "Server configurations sync via iCloud to all your devices. Passwords and SSH keys are stored in Apple Keychain and can sync via iCloud Keychain when enabled."
     },
     "q3": {
-      "question": "Which authentication methods are supported?",
-      "answer": "Standard SSH auth supports password, SSH key, and SSH key with passphrase. VVTerm also supports Mosh, Tailscale SSH, and Cloudflare Tunnel SSH. Credentials are stored securely in Apple Keychain when required."
+      "question": "Which connection methods are supported?",
+      "answer": "VVTerm supports standard SSH plus Mosh, Tailscale SSH, and Cloudflare Tunnel SSH. Credentials stay secured in Apple Keychain when required."
     },
     "q4": {
       "question": "Does VVTerm work on iPad?",
-      "answer": "Yes! VVTerm works on iPhone, iPad, and Mac. The iOS version has a keyboard toolbar with Esc, Tab, Ctrl, and arrow keys for easy terminal navigation."
+      "answer": "Yes. VVTerm works on iPhone, iPad, and Mac, and the iOS version includes a keyboard toolbar with Esc, Tab, Ctrl, and arrow keys."
     },
     "q5": {
-      "question": "What terminal emulator does it use?",
-      "answer": "VVTerm uses libghostty, the same GPU-accelerated terminal rendering engine from Ghostty. It provides fast, accurate terminal emulation with custom theme support."
+      "question": "What terminal engine does it use?",
+      "answer": "VVTerm uses libghostty, the same rendering engine from Ghostty, for fast and accurate terminal emulation."
     },
     "q6": {
-      "question": "What's included in Free vs Pro?",
-      "answer": "Free includes 1 workspace, 3 servers, and 1 connection tab — enough for personal use. Pro unlocks unlimited everything: workspaces, servers, simultaneous connections, and custom environments."
+      "question": "What is included in Free vs Pro?",
+      "answer": "Free includes 1 workspace, 3 servers, and 1 connection tab. Pro unlocks unlimited workspaces, servers, simultaneous connections, and custom environments."
     },
     "q7": {
       "question": "Can I use one purchase on multiple devices?",
-      "answer": "Yes. Your Pro purchase syncs via App Store. Sign in with the same Apple ID on all your devices to unlock Pro everywhere."
+      "answer": "Yes. Your Pro purchase syncs through the App Store. Sign in with the same Apple ID on your devices to unlock Pro everywhere."
     },
     "q8": {
-      "question": "What's the refund policy?",
-      "answer": "Refunds are handled by Apple via the App Store. To request one, use Apple's official refund flow at reportaproblem.apple.com. We can't issue refunds directly, but we're happy to help if you're having trouble."
+      "question": "What is the refund policy?",
+      "answer": "Refunds are handled by Apple through the App Store. To request one, use Apple's refund flow at reportaproblem.apple.com."
     },
     "q9": {
       "question": "What are the system requirements?",
-      "answer": "iOS 16+ (iPhone, iPad) or macOS 13+ Ventura (Apple Silicon only). Intel Macs are not supported due to GPU driver limitations."
+      "answer": "iOS 16+ on iPhone and iPad, or macOS 13+ Ventura on Apple Silicon Macs. Intel Macs are not supported."
     }
   },
+  "closing": {
+    "title": "Your servers. Anywhere.",
+    "subtitle": "Start free on iPhone, iPad, and Mac.",
+    "cta": "Download VVTerm"
+  },
   "footer": {
+    "tagline": "Native SSH client for iPhone, iPad, and Mac",
+    "description": "Open source, free forever, with optional Pro and lifetime upgrade.",
+    "productTitle": "Product",
+    "resourcesTitle": "Resources",
+    "navWhy": "Why VVTerm",
+    "navFeatures": "Features",
+    "navPricing": "Pricing",
+    "navFaq": "FAQ",
     "copyright": "Vivy Technologies Co., Limited",
-    "discord": "Discord"
+    "discord": "Discord",
+    "privacy": "Privacy",
+    "terms": "Terms of Use (EULA)",
+    "refunds": "Refunds",
+    "support": "Support"
   }
 }
