@@ -672,6 +672,7 @@
 "Copy" = "Kopieren";
 "Ctrl" = "Strg";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -949,6 +950,7 @@
 "Delete Custom Action?" = "Benutzerdefinierte Aktion löschen?";
 "Edit Custom Action" = "Benutzerdefinierte Aktion bearbeiten";
 "New Custom Action" = "Neue benutzerdefinierte Aktion";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld benutzerdefinierte Aktionen. Tippen Sie auf eine Zeile zum Bearbeiten.";
 "Title length: %lld/%lld" = "Titellänge: %lld/%lld";
 "Command length: %lld/%lld" = "Befehlslänge: %lld/%lld";

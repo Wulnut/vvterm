@@ -672,6 +672,7 @@
 "Copy" = "คัดลอก";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -949,6 +950,7 @@
 "Delete Custom Action?" = "ลบการทำงานกำหนดเองใช่ไหม";
 "Edit Custom Action" = "แก้ไขการทำงานกำหนดเอง";
 "New Custom Action" = "การทำงานกำหนดเองใหม่";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld การทำงานกำหนดเอง แตะแถวเพื่อแก้ไข";
 "Title length: %lld/%lld" = "ความยาวชื่อ: %lld/%lld";
 "Command length: %lld/%lld" = "ความยาวคำสั่ง: %lld/%lld";

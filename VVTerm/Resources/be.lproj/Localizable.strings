@@ -673,6 +673,7 @@
 "Copy" = "Капіяваць";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -950,6 +951,7 @@
 "Delete Custom Action?" = "Выдаліць карыстальніцкае дзеянне?";
 "Edit Custom Action" = "Рэдагаваць карыстальніцкае дзеянне";
 "New Custom Action" = "Новае карыстальніцкае дзеянне";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld карыстальніцкіх дзеянняў. Націсніце радок, каб рэдагаваць.";
 "Title length: %lld/%lld" = "Даўжыня назвы: %lld/%lld";
 "Command length: %lld/%lld" = "Даўжыня каманды: %lld/%lld";

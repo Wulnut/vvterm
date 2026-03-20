@@ -1678,6 +1678,10 @@ indirect enum TerminalKey {
         withModifier(.shift)
     }
 
+    func withCommand() -> TerminalKey {
+        withModifier(.super)
+    }
+
     private func withModifier(_ modifier: Ghostty.Input.Mods) -> TerminalKey {
         switch self {
         case .modified(let key, let mods):
@@ -1874,7 +1878,7 @@ extension GhosttyTerminalView {
             guard let key = Ghostty.Input.Key(rawValue: action.shortcutKey.rawValue) else { return }
             let mods = action.shortcutModifiers.ghosttyModifiers
             let text: String?
-            if action.shortcutModifiers.control || action.shortcutModifiers.alternate {
+            if action.shortcutModifiers.control || action.shortcutModifiers.alternate || action.shortcutModifiers.command {
                 text = nil
             } else if action.shortcutModifiers.shift {
                 text = action.shortcutKey.shiftedText ?? action.shortcutKey.unshiftedText
@@ -1886,6 +1890,26 @@ extension GhosttyTerminalView {
             sendToolbarGhosttyKey(key, mods: mods, text: text, unshiftedCodepoint: codepoint)
         }
     }
+
+    private func ghosttyKeyMapping(for character: Character) -> (key: Ghostty.Input.Key, text: String?, codepoint: UInt32, requiresShift: Bool)? {
+        let string = String(character)
+
+        for shortcutKey in TerminalAccessoryShortcutKey.allCases {
+            if shortcutKey.unshiftedText == string,
+               let ghosttyKey = Ghostty.Input.Key(rawValue: shortcutKey.rawValue) {
+                let codepoint = shortcutKey.unshiftedText?.unicodeScalars.first?.value ?? 0
+                return (ghosttyKey, shortcutKey.unshiftedText, codepoint, false)
+            }
+
+            if shortcutKey.shiftedText == string,
+               let ghosttyKey = Ghostty.Input.Key(rawValue: shortcutKey.rawValue) {
+                let codepoint = shortcutKey.unshiftedText?.unicodeScalars.first?.value ?? 0
+                return (ghosttyKey, shortcutKey.shiftedText, codepoint, true)
+            }
+        }
+
+        return nil
+    }
 }
 
 private extension TerminalAccessoryShortcutModifiers {
@@ -1896,6 +1920,9 @@ private extension TerminalAccessoryShortcutModifiers {
         }
         if alternate {
             mods.insert(.alt)
+        }
+        if command {
+            mods.insert(.super)
         }
         if shift {
             mods.insert(.shift)
@@ -1917,9 +1944,11 @@ private class TerminalInputAccessoryView: UIInputView {
     }
     private var ctrlActive = false
     private var altActive = false
+    private var commandActive = false
     private var shiftActive = false
     private weak var ctrlButton: UIButton?
     private weak var altButton: UIButton?
+    private weak var commandButton: UIButton?
     private weak var shiftButton: UIButton?
     private weak var voiceButton: UIButton?
     private weak var dismissKeyboardButton: UIButton?
@@ -2180,6 +2209,17 @@ private class TerminalInputAccessoryView: UIInputView {
     }
 
     private func makeSystemActionButton(for actionID: TerminalAccessorySystemActionID) -> UIButton? {
+        if actionID == .commandModifier {
+            let button = makeModifierButton(title: actionID.toolbarTitle) { [weak self] in
+                self?.commandActive.toggle()
+                self?.updateModifierState()
+            }
+            button.accessibilityLabel = actionID.listTitle
+            commandButton = button
+            updateModifierButton(button, isActive: commandActive)
+            return button
+        }
+
         guard let terminalKey = terminalKey(for: actionID) else { return nil }
 
         let button: UIButton
@@ -2215,6 +2255,7 @@ private class TerminalInputAccessoryView: UIInputView {
 
     private func terminalKey(for actionID: TerminalAccessorySystemActionID) -> TerminalKey? {
         switch actionID {
+        case .commandModifier: return nil
         case .escape: return .escape
         case .tab: return .tab
         case .shiftTab: return .tab.withShift()
@@ -2473,12 +2514,16 @@ private class TerminalInputAccessoryView: UIInputView {
         if altActive {
             modifiedKey = modifiedKey.withAlt()
         }
+        if commandActive {
+            modifiedKey = modifiedKey.withCommand()
+        }
         if shiftActive {
             modifiedKey = modifiedKey.withShift()
         }
-        if ctrlActive || altActive || shiftActive {
+        if ctrlActive || altActive || commandActive || shiftActive {
             ctrlActive = false
             altActive = false
+            commandActive = false
             shiftActive = false
             updateModifierState()
         }
@@ -2486,9 +2531,10 @@ private class TerminalInputAccessoryView: UIInputView {
     }
 
     private func sendCustomAction(_ action: TerminalAccessoryCustomAction) {
-        if ctrlActive || altActive || shiftActive {
+        if ctrlActive || altActive || commandActive || shiftActive {
             ctrlActive = false
             altActive = false
+            commandActive = false
             shiftActive = false
             updateModifierState()
         }
@@ -2523,23 +2569,26 @@ private class TerminalInputAccessoryView: UIInputView {
         repeatingKey = nil
     }
 
-    func consumeModifiers() -> (ctrl: Bool, alt: Bool, shift: Bool) {
+    func consumeModifiers() -> (ctrl: Bool, alt: Bool, command: Bool, shift: Bool) {
         let ctrl = ctrlActive
         let alt = altActive
+        let command = commandActive
         let shift = shiftActive
-        if ctrl || alt || shift {
+        if ctrl || alt || command || shift {
             ctrlActive = false
             altActive = false
+            commandActive = false
             shiftActive = false
             updateModifierState()
         }
-        return (ctrl, alt, shift)
+        return (ctrl, alt, command, shift)
     }
 
     private func updateModifierState() {
         UIView.animate(withDuration: 0.2) {
             self.updateModifierButton(self.ctrlButton, isActive: self.ctrlActive)
             self.updateModifierButton(self.altButton, isActive: self.altActive)
+            self.updateModifierButton(self.commandButton, isActive: self.commandActive)
             self.updateModifierButton(self.shiftButton, isActive: self.shiftActive)
         }
     }
@@ -2611,17 +2660,20 @@ extension GhosttyTerminalView: UIKeyInput, UITextInputTraits {
 
         if let toolbar = keyboardToolbar {
             let mods = toolbar.consumeModifiers()
-            if mods.ctrl || mods.alt {
+            if mods.ctrl || mods.alt || mods.command {
                 if let firstChar = text.first {
-                    let lower = String(firstChar).lowercased()
-                    if let key = Ghostty.Input.Key(rawValue: lower) {
+                    if let mapping = ghosttyKeyMapping(for: firstChar) {
                         var ghostMods: Ghostty.Input.Mods = []
                         if mods.ctrl { ghostMods.insert(.ctrl) }
                         if mods.alt { ghostMods.insert(.alt) }
-                        if mods.shift { ghostMods.insert(.shift) }
-                        let codepoint = lower.unicodeScalars.first?.value ?? 0
-                        sendModifiedKey(key, mods: ghostMods, text: lower, unshiftedCodepoint: codepoint)
+                        if mods.command { ghostMods.insert(.super) }
+                        if mods.shift || mapping.requiresShift { ghostMods.insert(.shift) }
+                        let keyText = mods.ctrl || mods.alt || mods.command ? nil : mapping.text
+                        sendModifiedKey(mapping.key, mods: ghostMods, text: keyText, unshiftedCodepoint: mapping.codepoint)
                     } else {
+                        if mods.command {
+                            return
+                        }
                         var data = Data()
                         if mods.alt {
                             data.append(0x1B)

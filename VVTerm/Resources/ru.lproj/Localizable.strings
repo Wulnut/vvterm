@@ -672,6 +672,7 @@
 "Copy" = "Копировать";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -949,6 +950,7 @@
 "Delete Custom Action?" = "Удалить пользовательское действие?";
 "Edit Custom Action" = "Редактировать пользовательское действие";
 "New Custom Action" = "Новое пользовательское действие";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld пользовательских действий. Нажмите на строку, чтобы отредактировать.";
 "Title length: %lld/%lld" = "Длина названия: %lld/%lld";
 "Command length: %lld/%lld" = "Длина команды: %lld/%lld";

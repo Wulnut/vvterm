@@ -672,6 +672,7 @@
 "Copy" = "コピー";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -949,6 +950,7 @@
 "Delete Custom Action?" = "カスタムアクションを削除しますか?";
 "Edit Custom Action" = "カスタムアクションを編集";
 "New Custom Action" = "新しいカスタムアクション";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld カスタムアクション。行をタップして編集します。";
 "Title length: %lld/%lld" = "タイトルの長さ: %lld/%lld";
 "Command length: %lld/%lld" = "コマンドの長さ: %lld/%lld";

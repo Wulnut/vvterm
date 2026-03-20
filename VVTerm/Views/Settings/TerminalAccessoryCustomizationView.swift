@@ -78,7 +78,7 @@ struct TerminalAccessoryCustomizationView: View {
             } footer: {
                 Text(
                     String(
-                        format: String(localized: "Ctrl, Alt, and Shift stay fixed. %lld/%lld active items."),
+                        format: String(localized: "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items."),
                         Int64(activeItems.count),
                         Int64(TerminalAccessoryProfile.maxActiveItems)
                     )

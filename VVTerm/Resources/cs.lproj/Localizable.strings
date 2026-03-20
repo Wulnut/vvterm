@@ -673,6 +673,7 @@
 "Copy" = "Kopírovat";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -950,6 +951,7 @@
 "Delete Custom Action?" = "Smazat vlastní akci?";
 "Edit Custom Action" = "Upravit vlastní akci";
 "New Custom Action" = "Nová vlastní akce";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld vlastních akcí. Klepnutím na řádek upravíte.";
 "Title length: %lld/%lld" = "Délka názvu: %lld/%lld";
 "Command length: %lld/%lld" = "Délka příkazu: %lld/%lld";

@@ -13,6 +13,7 @@ struct TerminalCustomActionFormView: View {
     @State private var shortcutKey: TerminalAccessoryShortcutKey
     @State private var shortcutControl: Bool
     @State private var shortcutAlt: Bool
+    @State private var shortcutCommand: Bool
     @State private var shortcutShift: Bool
     @State private var errorMessage: String?
     @State private var showingDeleteConfirmation = false
@@ -31,6 +32,7 @@ struct TerminalCustomActionFormView: View {
         TerminalAccessoryShortcutModifiers(
             control: shortcutControl,
             alternate: shortcutAlt,
+            command: shortcutCommand,
             shift: shortcutShift
         )
     }
@@ -48,6 +50,7 @@ struct TerminalCustomActionFormView: View {
         _shortcutKey = State(initialValue: action?.shortcutKey ?? .a)
         _shortcutControl = State(initialValue: action?.shortcutModifiers.control ?? false)
         _shortcutAlt = State(initialValue: action?.shortcutModifiers.alternate ?? false)
+        _shortcutCommand = State(initialValue: action?.shortcutModifiers.command ?? false)
         _shortcutShift = State(initialValue: action?.shortcutModifiers.shift ?? false)
     }
 
@@ -120,6 +123,7 @@ struct TerminalCustomActionFormView: View {
 
                         Toggle("Ctrl", isOn: $shortcutControl)
                         Toggle("Alt", isOn: $shortcutAlt)
+                        Toggle("Cmd", isOn: $shortcutCommand)
                         Toggle("Shift", isOn: $shortcutShift)
                     } header: {
                         Text("Shortcut")

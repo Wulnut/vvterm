@@ -35,9 +35,45 @@ enum TerminalAccessoryCustomActionKind: String, Codable, CaseIterable, Identifia
 struct TerminalAccessoryShortcutModifiers: Codable, Equatable, Hashable {
     var control: Bool = false
     var alternate: Bool = false
+    var command: Bool = false
     var shift: Bool = false
 
+    private enum CodingKeys: String, CodingKey {
+        case control
+        case alternate
+        case command
+        case shift
+    }
+
     static let none = TerminalAccessoryShortcutModifiers()
+
+    init(
+        control: Bool = false,
+        alternate: Bool = false,
+        command: Bool = false,
+        shift: Bool = false
+    ) {
+        self.control = control
+        self.alternate = alternate
+        self.command = command
+        self.shift = shift
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        control = try container.decodeIfPresent(Bool.self, forKey: .control) ?? false
+        alternate = try container.decodeIfPresent(Bool.self, forKey: .alternate) ?? false
+        command = try container.decodeIfPresent(Bool.self, forKey: .command) ?? false
+        shift = try container.decodeIfPresent(Bool.self, forKey: .shift) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(control, forKey: .control)
+        try container.encode(alternate, forKey: .alternate)
+        try container.encode(command, forKey: .command)
+        try container.encode(shift, forKey: .shift)
+    }
 
     var displayParts: [String] {
         var parts: [String] = []
@@ -46,6 +82,9 @@ struct TerminalAccessoryShortcutModifiers: Codable, Equatable, Hashable {
         }
         if alternate {
             parts.append(String(localized: "Alt"))
+        }
+        if command {
+            parts.append(String(localized: "Cmd"))
         }
         if shift {
             parts.append(String(localized: "Shift"))
@@ -326,6 +365,7 @@ enum TerminalAccessoryShortcutKey: String, Codable, CaseIterable, Identifiable {
 }
 
 enum TerminalAccessorySystemActionID: String, Codable, CaseIterable, Hashable, Identifiable {
+    case commandModifier
     case escape
     case tab
     case shiftTab
@@ -378,6 +418,7 @@ enum TerminalAccessorySystemActionID: String, Codable, CaseIterable, Hashable, I
 
     var listTitle: String {
         switch self {
+        case .commandModifier: return String(localized: "Cmd")
         case .escape: return String(localized: "Esc")
         case .tab: return String(localized: "Tab")
         case .shiftTab: return String(localized: "Shift+Tab")
@@ -419,6 +460,7 @@ enum TerminalAccessorySystemActionID: String, Codable, CaseIterable, Hashable, I
 
     var toolbarTitle: String {
         switch self {
+        case .commandModifier: return String(localized: "Cmd")
         case .escape: return String(localized: "Esc")
         case .tab: return String(localized: "Tab")
         case .shiftTab: return String(localized: "S-Tab")

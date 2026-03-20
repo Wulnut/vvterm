@@ -652,6 +652,7 @@
 "Copy" = "复制";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -929,6 +930,7 @@
 "Delete Custom Action?" = "删除自定义操作？";
 "Edit Custom Action" = "编辑自定义操作";
 "New Custom Action" = "新建自定义操作";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld 个自定义操作。点按一行进行编辑。";
 "Title length: %lld/%lld" = "标题长度：%lld/%lld";
 "Command length: %lld/%lld" = "命令长度：%lld/%lld";

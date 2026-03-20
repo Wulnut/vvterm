@@ -717,6 +717,7 @@
 "Copy" = "Sao chép";
 "Ctrl" = "Ctrl";
 "Alt" = "Alt";
+"Cmd" = "Cmd";
 "Esc" = "Esc";
 "Tab" = "Tab";
 "End" = "End";
@@ -994,6 +995,7 @@
 "Delete Custom Action?" = "Xóa hành động tùy chỉnh?";
 "Edit Custom Action" = "Chỉnh sửa hành động tùy chỉnh";
 "New Custom Action" = "Hành động tùy chỉnh mới";
+"Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items." = "Ctrl, Alt, and Shift stay fixed. Add Cmd if you want it on the bar. %lld/%lld active items.";
 "%lld/%lld custom actions. Tap a row to edit." = "%lld/%lld hành động tùy chỉnh. Chạm vào một hàng để chỉnh sửa.";
 "Title length: %lld/%lld" = "Độ dài tiêu đề: %lld/%lld";
 "Command length: %lld/%lld" = "Độ dài lệnh: %lld/%lld";
