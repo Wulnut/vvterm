@@ -246,6 +246,8 @@ final class ConnectionSessionManager: ObservableObject {
 
     /// Terminal views indexed by session ID for voice input and other external interactions
     private var terminalViews: [UUID: GhosttyTerminalView] = [:]
+    /// Sessions whose preserved terminal must be reset before attaching a fresh shell.
+    private var terminalsNeedingReconnectReset: Set<UUID> = []
 
     /// Shell cancel handlers indexed by session ID - called before closing to cancel async tasks
     private var shellCancelHandlers: [UUID: () -> Void] = [:]
@@ -458,6 +460,7 @@ final class ConnectionSessionManager: ObservableObject {
         shellCancelHandlers[sessionId]?()
         shellCancelHandlers.removeValue(forKey: sessionId)
         shellSuspendHandlers.removeValue(forKey: sessionId)
+        terminalsNeedingReconnectReset.remove(sessionId)
         tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
 
         // Remove from UI immediately
@@ -552,6 +555,7 @@ final class ConnectionSessionManager: ObservableObject {
         for session in sessionsToSuspend {
             if session.connectionState.isConnected || session.connectionState.isConnecting {
                 updateSessionState(session.id, to: .disconnected)
+                markTerminalForReconnectReset(for: session.id)
             }
             // Cancel any in-flight connects while preserving terminal state
             shellSuspendHandlers[session.id]?()
@@ -574,6 +578,7 @@ final class ConnectionSessionManager: ObservableObject {
     /// Handle shell exit without removing the session (keeps tab for reconnect)
     func handleShellExit(for sessionId: UUID) {
         updateSessionState(sessionId, to: .disconnected)
+        markTerminalForReconnectReset(for: sessionId)
         Task.detached { [weak self] in
             await self?.unregisterSSHClient(for: sessionId)
         }
@@ -681,6 +686,7 @@ final class ConnectionSessionManager: ObservableObject {
             sessions[index].activeTransport = transport
             sessions[index].moshFallbackReason = fallbackReason
         }
+        terminalsNeedingReconnectReset.remove(sessionId)
 
         if !skipTmuxLifecycle {
             Task { [weak self] in
@@ -823,6 +829,7 @@ final class ConnectionSessionManager: ObservableObject {
             // Ensure cleanup is called to free Ghostty surface
             terminal.cleanup()
         }
+        terminalsNeedingReconnectReset.remove(sessionId)
         terminalAccessOrder.removeAll { $0 == sessionId }
         logger.debug("Unregistered terminal, remaining: \(self.terminalViews.count)")
     }
@@ -913,6 +920,14 @@ final class ConnectionSessionManager: ObservableObject {
         terminalViews[sessionId] != nil
     }
 
+    func markTerminalForReconnectReset(for sessionId: UUID) {
+        terminalsNeedingReconnectReset.insert(sessionId)
+    }
+
+    func consumeTerminalReconnectReset(for sessionId: UUID) -> Bool {
+        terminalsNeedingReconnectReset.remove(sessionId) != nil
+    }
+
     /// Marks an existing terminal as recently used without fetching it for body evaluation.
     func markTerminalUsed(for sessionId: UUID) {
         guard terminalViews[sessionId] != nil else { return }
@@ -943,6 +958,7 @@ final class ConnectionSessionManager: ObservableObject {
         if let index = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[index].connectionState = .reconnecting(attempt: 1)
         }
+        markTerminalForReconnectReset(for: session.id)
 
         // Cancel in-flight shell work but keep the terminal surface for reuse
         shellSuspendHandlers[session.id]?()
@@ -1448,6 +1464,7 @@ extension ConnectionSessionManager {
         shellCancelHandlers.removeAll()
         shellSuspendHandlers.removeAll()
         sessionOpensInFlight.removeAll()
+        terminalsNeedingReconnectReset.removeAll()
         isSuspendingForBackground = false
         tmuxCleanupServers.removeAll()
         terminalViews.removeAll()

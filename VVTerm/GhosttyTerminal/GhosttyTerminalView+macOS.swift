@@ -684,6 +684,13 @@ class GhosttyTerminalView: NSView, NSUserInterfaceValidations {
         displayIfNeeded()
     }
 
+    /// Reset Ghostty's terminal state before binding a fresh remote shell to a reused surface.
+    func resetTerminalForReconnect() {
+        guard !isShuttingDown else { return }
+        _ = surface?.perform(action: "reset")
+        forceRefresh()
+    }
+
     // MARK: - Custom I/O API (for SSH clients)
 
     /// Callback invoked when user types in the terminal (keyboard input to send to SSH)

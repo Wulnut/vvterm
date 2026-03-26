@@ -2001,6 +2001,13 @@ class GhosttyTerminalView: UIView {
         requestRender()
     }
 
+    /// Reset Ghostty's terminal state before binding a fresh remote shell to a reused surface.
+    func resetTerminalForReconnect() {
+        guard !isShuttingDown else { return }
+        _ = surface?.perform(action: "reset")
+        forceRefresh()
+    }
+
     private func configureIOSurfaceLayers() {
         configureIOSurfaceLayers(size: nil)
     }

@@ -403,7 +403,12 @@ struct SSHTerminalWrapper: NSViewRepresentable {
             // Use async to avoid calling during view construction
             DispatchQueue.main.async {
                 onReady()
-                if ConnectionSessionManager.shared.shellId(for: session) == nil {
+                let shellMissing = ConnectionSessionManager.shared.shellId(for: session) == nil
+                let shellStartInFlight = ConnectionSessionManager.shared.isShellStartInFlight(for: session.id)
+                if shellMissing && !shellStartInFlight {
+                    if ConnectionSessionManager.shared.consumeTerminalReconnectReset(for: session.id) {
+                        existingTerminal.resetTerminalForReconnect()
+                    }
                     coordinator.startSSHConnection(terminal: existingTerminal)
                 }
             }
@@ -700,9 +705,15 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
 
             DispatchQueue.main.async {
                 onReady()
-                if ConnectionSessionManager.shared.shellId(for: session) == nil,
+                let shellMissing = ConnectionSessionManager.shared.shellId(for: session) == nil
+                let shellStartInFlight = ConnectionSessionManager.shared.isShellStartInFlight(for: session.id)
+                if shellMissing,
+                   !shellStartInFlight,
                    UIApplication.shared.applicationState == .active,
                    !ConnectionSessionManager.shared.isSuspendingForBackground {
+                    if ConnectionSessionManager.shared.consumeTerminalReconnectReset(for: session.id) {
+                        existingTerminal.resetTerminalForReconnect()
+                    }
                     coordinator.startSSHConnection(terminal: existingTerminal)
                 }
             }
@@ -841,6 +852,9 @@ private struct SSHTerminalRepresentable: UIViewRepresentable {
                 guard ConnectionSessionManager.shared.sessions.contains(where: { $0.id == session.id }) else { return }
                 guard ConnectionSessionManager.shared.shellId(for: session) == nil else { return }
                 guard !ConnectionSessionManager.shared.isShellStartInFlight(for: session.id) else { return }
+                if ConnectionSessionManager.shared.consumeTerminalReconnectReset(for: session.id) {
+                    terminalView.resetTerminalForReconnect()
+                }
                 coordinator.startSSHConnection(terminal: terminalView)
             }
         }

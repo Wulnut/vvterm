@@ -284,9 +284,39 @@ struct ConnectionLifecycleIntegrationTests {
             #expect(manager.sessions.first?.id == session.id)
             #expect(manager.sessions.first?.connectionState == .disconnected)
             #expect(manager.shellId(for: session.id) == nil)
+            #expect(manager.consumeTerminalReconnectReset(for: session.id))
             #expect(manager.connectedServerIds.isEmpty)
             #expect(suspendCalls == 1)
             #expect(!manager.isSuspendingForBackground)
+        }
+    }
+
+    @Test
+    func connectionManagerHandleShellExitMarksTerminalForReconnectReset() async {
+        await withCleanConnectionManager { manager in
+            let serverId = UUID()
+            let session = ConnectionSession(
+                serverId: serverId,
+                title: "Reconnect Reset",
+                connectionState: .connected
+            )
+            manager.sessions = [session]
+            manager.connectedServerIds = [serverId]
+
+            let client = SSHClient()
+            manager.registerSSHClient(
+                client,
+                shellId: UUID(),
+                for: session.id,
+                serverId: serverId,
+                skipTmuxLifecycle: true
+            )
+
+            manager.handleShellExit(for: session.id)
+
+            #expect(manager.sessions.first?.connectionState == .disconnected)
+            #expect(manager.consumeTerminalReconnectReset(for: session.id))
+            #expect(!manager.consumeTerminalReconnectReset(for: session.id))
         }
     }
 
