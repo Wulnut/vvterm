@@ -46,6 +46,7 @@ struct RemoteFileInspectorView: View {
     let onMove: ((RemoteFileEntry) -> Void)?
     let onEditPermissions: ((RemoteFileEntry) -> Void)?
     let onDelete: ((RemoteFileEntry) -> Void)?
+    let onClose: (() -> Void)?
     let onSaveText: ((RemoteFileEntry, String) async throws -> Void)?
 
     @State private var selectedTab: InspectorTab = .metadata
@@ -98,11 +99,11 @@ struct RemoteFileInspectorView: View {
     private var sidebarInspectorContent: some View {
         if let selectedEntry {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: chrome == .sidebar ? 12 : 16) {
                     inspectorHeader(for: selectedEntry)
                     inspectorTabs
                 }
-                .padding(16)
+                .padding(chrome == .sidebar ? 12 : 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 if selectedTab == .metadata {
@@ -125,6 +126,13 @@ struct RemoteFileInspectorView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if chrome == .sidebar, onClose != nil {
+                        HStack {
+                            Spacer(minLength: 0)
+                            closeInspectorButton
+                        }
+                    }
+
                     if let directoryError {
                         RemoteFileEmptyState(
                             icon: "exclamationmark.triangle.fill",
@@ -623,7 +631,7 @@ struct RemoteFileInspectorView: View {
     }
 
     private func inspectorHeader(for entry: RemoteFileEntry) -> some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .top, spacing: chrome == .sidebar ? 12 : 14) {
             RoundedRectangle(cornerRadius: inspectorHeaderIconCornerRadius, style: .continuous)
                 .fill(sectionBackground)
                 .frame(width: inspectorHeaderIconSize, height: inspectorHeaderIconSize)
@@ -635,13 +643,13 @@ struct RemoteFileInspectorView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.name)
-                    .font(.title2.weight(.semibold))
+                    .font(inspectorHeaderTitleFont)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Text(inspectorSubtitle(for: entry))
-                    .font(.title3)
+                    .font(inspectorHeaderSubtitleFont)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -649,17 +657,35 @@ struct RemoteFileInspectorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if chrome == .sidebar {
-                Menu {
-                    sidebarInspectorActionMenu(for: entry)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
+                HStack(spacing: 6) {
+                    Menu {
+                        sidebarInspectorActionMenu(for: entry)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help(Text("File Actions"))
+
+                    if onClose != nil {
+                        closeInspectorButton
+                    }
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help(Text("File Actions"))
             }
         }
+    }
+
+    private var closeInspectorButton: some View {
+        Button {
+            onClose?()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .semibold))
+        }
+        .buttonStyle(.borderless)
+        .help(Text("Close Preview"))
     }
 
     @ViewBuilder
@@ -947,15 +973,23 @@ struct RemoteFileInspectorView: View {
     }
 
     private var inspectorHeaderIconSize: CGFloat {
-        chrome == .sidebar ? 44 : 56
+        chrome == .sidebar ? 36 : 56
     }
 
     private var inspectorHeaderIconCornerRadius: CGFloat {
-        chrome == .sidebar ? 12 : 14
+        chrome == .sidebar ? 9 : 14
     }
 
     private var inspectorHeaderSymbolSize: CGFloat {
-        chrome == .sidebar ? 22 : 26
+        chrome == .sidebar ? 17 : 26
+    }
+
+    private var inspectorHeaderTitleFont: Font {
+        chrome == .sidebar ? .headline.weight(.semibold) : .title2.weight(.semibold)
+    }
+
+    private var inspectorHeaderSubtitleFont: Font {
+        chrome == .sidebar ? .subheadline : .title3
     }
 
     private func canShare(_ entry: RemoteFileEntry) -> Bool {

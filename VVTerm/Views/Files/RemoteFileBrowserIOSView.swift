@@ -98,6 +98,7 @@ extension RemoteFileBrowserView {
                 onDelete: { entry in
                     deleteTargetEntry = entry
                 },
+                onClose: nil,
                 onSaveText: { entry, text in
                     try await browser.saveTextPreview(text, for: entry, serverId: server.id)
                 }

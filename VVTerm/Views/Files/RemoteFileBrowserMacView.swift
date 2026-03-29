@@ -6,8 +6,10 @@ import AppKit
 extension RemoteFileBrowserView {
     func macOSContent(_ snapshot: Snapshot) -> some View {
         GeometryReader { proxy in
-            let showsSplitPreview = shouldShowMacOSPreview(snapshot)
-                && proxy.size.width >= macOSMinimumWidthForSplitPreview
+            let splitMetrics = macOSSplitMetrics(
+                totalWidth: proxy.size.width,
+                showsPreview: shouldShowMacOSPreview(snapshot)
+            )
 
             VStack(spacing: 0) {
                 if macOSTitlebarHeight > 0 {
@@ -15,7 +17,7 @@ extension RemoteFileBrowserView {
                         .frame(height: macOSTitlebarHeight)
                 }
 
-                if showsSplitPreview {
+                if splitMetrics.showsPreview {
                     HSplitView {
                         macOSTable(snapshot)
                             .frame(minWidth: macOSMinimumTableWidth, maxWidth: .infinity, maxHeight: .infinity)
@@ -23,8 +25,8 @@ extension RemoteFileBrowserView {
                         macOSPreviewPanel(snapshot)
                             .frame(
                                 minWidth: macOSPreviewMinimumWidth,
-                                idealWidth: macOSPreviewIdealWidth,
-                                maxWidth: macOSPreviewMaximumWidth,
+                                idealWidth: splitMetrics.previewIdealWidth,
+                                maxWidth: splitMetrics.previewMaximumWidth,
                                 maxHeight: .infinity
                             )
                     }
@@ -110,60 +112,50 @@ extension RemoteFileBrowserView {
     }
 
     func macOSPreviewPanel(_ snapshot: Snapshot) -> some View {
-        ZStack(alignment: .topTrailing) {
-            RemoteFileInspectorView(
-                selectedEntry: snapshot.selectedEntry,
-                viewerPayload: snapshot.viewerPayload,
-                isLoadingViewer: snapshot.isLoadingViewer,
-                viewerError: snapshot.viewerError,
-                directoryError: snapshot.directoryError,
-                chrome: .sidebar,
-                backgroundColor: macOSCanvasColor,
-                previewBackgroundColor: macOSRaisedSurfaceColor,
-                sectionBackgroundColor: macOSRaisedSurfaceColor,
-                onLoadPreview: { entry in
-                    Task { await browser.loadPreview(for: entry, serverId: server.id) }
-                },
-                onDownloadPreview: { entry in
-                    Task {
-                        await browser.loadPreview(for: entry, serverId: server.id, allowLargeDownloads: true)
-                    }
-                },
-                onDownload: { entry in
-                    beginDownload(entry)
-                },
-                onShare: { entry in
-                    beginShare(entry)
-                },
-                onRename: { entry in
-                    beginRename(entry)
-                },
-                onMove: { entry in
-                    beginMove(entry)
-                },
-                onEditPermissions: { entry in
-                    guard canEditPermissions(for: entry) else { return }
-                    beginEditPermissions(entry)
-                },
-                onDelete: { entry in
-                    requestDelete([entry])
-                },
-                onSaveText: { entry, text in
-                    try await browser.saveTextPreview(text, for: entry, serverId: server.id)
+        RemoteFileInspectorView(
+            selectedEntry: snapshot.selectedEntry,
+            viewerPayload: snapshot.viewerPayload,
+            isLoadingViewer: snapshot.isLoadingViewer,
+            viewerError: snapshot.viewerError,
+            directoryError: snapshot.directoryError,
+            chrome: .sidebar,
+            backgroundColor: macOSCanvasColor,
+            previewBackgroundColor: macOSRaisedSurfaceColor,
+            sectionBackgroundColor: macOSRaisedSurfaceColor,
+            onLoadPreview: { entry in
+                Task { await browser.loadPreview(for: entry, serverId: server.id) }
+            },
+            onDownloadPreview: { entry in
+                Task {
+                    await browser.loadPreview(for: entry, serverId: server.id, allowLargeDownloads: true)
                 }
-            )
-
-            Button {
+            },
+            onDownload: { entry in
+                beginDownload(entry)
+            },
+            onShare: { entry in
+                beginShare(entry)
+            },
+            onRename: { entry in
+                beginRename(entry)
+            },
+            onMove: { entry in
+                beginMove(entry)
+            },
+            onEditPermissions: { entry in
+                guard canEditPermissions(for: entry) else { return }
+                beginEditPermissions(entry)
+            },
+            onDelete: { entry in
+                requestDelete([entry])
+            },
+            onClose: {
                 browser.clearViewer(serverId: server.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+            },
+            onSaveText: { entry, text in
+                try await browser.saveTextPreview(text, for: entry, serverId: server.id)
             }
-            .buttonStyle(.borderless)
-            .padding(.top, 12)
-            .padding(.trailing, 12)
-            .help(Text("Close Preview"))
-        }
+        )
         .frame(maxHeight: .infinity, alignment: .top)
         .background(macOSCanvasColor)
     }
@@ -559,10 +551,6 @@ extension RemoteFileBrowserView {
         220
     }
 
-    var macOSPreviewIdealWidth: CGFloat {
-        300
-    }
-
     var macOSPreviewMaximumWidth: CGFloat {
         440
     }
@@ -571,8 +559,25 @@ extension RemoteFileBrowserView {
         220
     }
 
-    var macOSMinimumWidthForSplitPreview: CGFloat {
-        640
+    func macOSSplitMetrics(totalWidth: CGFloat, showsPreview: Bool) -> (showsPreview: Bool, previewIdealWidth: CGFloat, previewMaximumWidth: CGFloat) {
+        guard showsPreview else {
+            return (false, 0, 0)
+        }
+
+        let splitDividerAllowance: CGFloat = 12
+        let availablePreviewWidth = totalWidth - macOSMinimumTableWidth - splitDividerAllowance
+
+        guard availablePreviewWidth >= macOSPreviewMinimumWidth else {
+            return (false, 0, 0)
+        }
+
+        let previewMaximumWidth = min(macOSPreviewMaximumWidth, availablePreviewWidth)
+        let previewIdealWidth = min(
+            previewMaximumWidth,
+            max(macOSPreviewMinimumWidth, totalWidth * 0.34)
+        )
+
+        return (true, previewIdealWidth, previewMaximumWidth)
     }
 
     var macOSChromeSurfaceColor: Color {
