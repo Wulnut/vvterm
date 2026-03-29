@@ -56,6 +56,11 @@ struct ContentView: View {
         guard effectiveZenModeEnabled, let selectedServer else { return "" }
         return selectedServer.name
     }
+
+    private var zenNavigationTitle: String {
+        guard effectiveZenModeEnabled, let selectedServer else { return "" }
+        return selectedServer.name
+    }
     #endif
 
     private var isSidebarVisible: Bool {
@@ -118,7 +123,6 @@ struct ContentView: View {
 
     private func setZenMode(_ enabled: Bool) {
         guard enabled != isZenModeEnabled else { return }
-        applyZenPresentation(enabled)
         isZenModeEnabled = enabled
     }
 
@@ -164,6 +168,9 @@ struct ContentView: View {
         } detail: {
             // RIGHT: Detail view based on selection state
             detailContent
+                #if os(macOS)
+                .navigationTitle(zenNavigationTitle)
+                #endif
         }
         .background(macOSWindowBackgroundColor)
         .onAppear {
@@ -277,18 +284,16 @@ private struct MainWindowChromeBridge: NSViewRepresentable {
         }
 
         func applyIfPossible() {
-            DispatchQueue.main.async { [weak self] in
-                guard let window = self?.window else { return }
-                MainWindowChromeBridge(
-                    windowTitle: self?.windowTitle ?? "",
-                    backgroundColor: self?.backgroundColor ?? .clear
-                )
-                .configure(
-                    window,
-                    title: self?.windowTitle ?? "",
-                    backgroundColor: self?.backgroundColor ?? .clear
-                )
-            }
+            guard let window else { return }
+            MainWindowChromeBridge(
+                windowTitle: windowTitle,
+                backgroundColor: backgroundColor
+            )
+            .configure(
+                window,
+                title: windowTitle,
+                backgroundColor: backgroundColor
+            )
         }
     }
 }

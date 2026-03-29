@@ -123,14 +123,6 @@ struct ConnectionTerminalContainer: View {
         #endif
     }
 
-    private var macOSNavigationTitle: String {
-        #if os(macOS)
-        return isZenModeEnabled ? server.name : ""
-        #else
-        return ""
-        #endif
-    }
-
     private var liveTerminalBackgroundColor: Color {
         ThemeColorParser.backgroundColor(for: effectiveThemeName)!
     }
@@ -317,7 +309,6 @@ struct ConnectionTerminalContainer: View {
     #if os(macOS)
     private var macOSBody: some View {
         sharedBody
-            .navigationTitle(macOSNavigationTitle)
             .focusedValue(\.openTerminalTab, handleNewTabCommand)
             .toolbar {
                 if !isZenModeEnabled {
