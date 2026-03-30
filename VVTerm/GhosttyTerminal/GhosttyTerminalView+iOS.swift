@@ -979,6 +979,7 @@ class GhosttyTerminalView: UIView {
 
     var acceptsTerminalInput = true
     private(set) var shouldRestoreKeyboardFocusOnReconnect = false
+    private var suppressDirectTouchKeyboardFocusUntil = Date.distantPast
 
     func markKeyboardFocusForReconnect() {
         shouldRestoreKeyboardFocusOnReconnect = true
@@ -986,6 +987,20 @@ class GhosttyTerminalView: UIView {
 
     func clearKeyboardFocusForReconnect() {
         shouldRestoreKeyboardFocusOnReconnect = false
+    }
+
+    func dismissKeyboardFromToolbar() {
+        clearKeyboardFocusForReconnect()
+        // Tapping the dismiss button can leak one direct-touch event through to the
+        // terminal view underneath. Suppress immediate touch-driven refocus briefly
+        // so the software keyboard stays dismissed on handheld devices.
+        suppressDirectTouchKeyboardFocusUntil = Date().addingTimeInterval(0.35)
+        _ = resignFirstResponder()
+    }
+
+    func shouldAutoFocusKeyboard(for touches: Set<UITouch>) -> Bool {
+        guard touches.contains(where: { $0.type == .direct }) else { return true }
+        return Date() >= suppressDirectTouchKeyboardFocusUntil
     }
 
     override var textInputContextIdentifier: String? {
@@ -1127,6 +1142,7 @@ class GhosttyTerminalView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
         // Tap just focuses keyboard - no mouse events (avoids accidental selection)
+        guard shouldAutoFocusKeyboard(for: touches) else { return }
         _ = becomeFirstResponder()
     }
 
@@ -2353,8 +2369,7 @@ extension GhosttyTerminalView {
             }, onCustomAction: { [weak self] action in
                 self?.handleToolbarCustomAction(action)
             }, onVoice: onVoiceButtonTapped, onDismissKeyboard: { [weak self] in
-                self?.clearKeyboardFocusForReconnect()
-                _ = self?.resignFirstResponder()
+                self?.dismissKeyboardFromToolbar()
             })
             keyboardToolbar = toolbar
         } else {
