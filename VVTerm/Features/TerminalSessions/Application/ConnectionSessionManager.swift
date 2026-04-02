@@ -100,11 +100,19 @@ final class ConnectionSessionManager: ObservableObject {
         restoreSnapshot()
     }
 
+    private func sessionWithID(_ sessionId: UUID) -> ConnectionSession? {
+        sessions.first { $0.id == sessionId }
+    }
+
+    private func indexOfSession(_ sessionId: UUID) -> Int? {
+        sessions.firstIndex { $0.id == sessionId }
+    }
+
     // MARK: - Session Management
 
     var selectedSession: ConnectionSession? {
         guard let id = selectedSessionId else { return nil }
-        return sessions.first { $0.id == id }
+        return sessionWithID(id)
     }
 
     var activeSessions: [ConnectionSession] {
@@ -153,18 +161,18 @@ final class ConnectionSessionManager: ObservableObject {
         let preferredSessionId = selectedSessionByServer[server.id] ?? selectedSessionId
         let fallbackSessionId = sessions.first(where: { $0.serverId == server.id })?.id
         let sourceSessionId = preferredSessionId ?? fallbackSessionId
-        var sourceWorkingDirectory = sessions.first(where: { $0.id == sourceSessionId })?.workingDirectory
+        var sourceWorkingDirectory = sourceSessionId.flatMap(sessionWithID)?.workingDirectory
             ?? sessions.first(where: { $0.serverId == server.id })?.workingDirectory
         if tmuxResolver.isTmuxEnabled(for: server.id),
            let sourceSessionId,
-           let sourceSession = sessions.first(where: { $0.id == sourceSessionId }),
+           let sourceSession = sessionWithID(sourceSessionId),
            let client = sshClient(for: sourceSession),
            let path = await RemoteTmuxManager.shared.currentPath(
                sessionName: tmuxResolver.sessionName(for: sourceSessionId),
                using: client
            ) {
             sourceWorkingDirectory = path
-            if let index = sessions.firstIndex(where: { $0.id == sourceSessionId }) {
+            if let index = indexOfSession(sourceSessionId) {
                 sessions[index].workingDirectory = path
             }
         }
@@ -195,7 +203,7 @@ final class ConnectionSessionManager: ObservableObject {
     // MARK: - Connection State Updates
 
     func updateSessionState(_ sessionId: UUID, to state: ConnectionState) {
-        guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        guard let index = indexOfSession(sessionId) else { return }
 
         sessions[index].connectionState = state
         let serverId = sessions[index].serverId
@@ -222,7 +230,7 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     func sessionState(for sessionId: UUID) -> ConnectionState? {
-        sessions.first(where: { $0.id == sessionId })?.connectionState
+        sessionWithID(sessionId)?.connectionState
     }
 
     func hasOtherActiveSessions(for serverId: UUID, excluding sessionId: UUID) -> Bool {
@@ -240,13 +248,13 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     func updateTmuxStatus(_ sessionId: UUID, status: TmuxStatus) {
-        guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        guard let index = indexOfSession(sessionId) else { return }
         sessions[index].tmuxStatus = status
     }
 
     func updateSessionWorkingDirectory(_ sessionId: UUID, rawDirectory: String) {
         guard let normalized = normalizeWorkingDirectory(rawDirectory) else { return }
-        guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        guard let index = indexOfSession(sessionId) else { return }
         sessions[index].workingDirectory = normalized
     }
 
@@ -321,7 +329,7 @@ final class ConnectionSessionManager: ObservableObject {
         }
 
         if let selectedId = replacementSessionId ?? selectedSessionId,
-           let selectedSession = sessions.first(where: { $0.id == selectedId }) {
+           let selectedSession = sessionWithID(selectedId) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 self?.redrawSessionAfterClose(selectedSession)
             }
@@ -428,14 +436,14 @@ final class ConnectionSessionManager: ObservableObject {
 
     func selectPreviousSession() {
         guard let currentId = selectedSessionId,
-              let currentIndex = sessions.firstIndex(where: { $0.id == currentId }),
+              let currentIndex = indexOfSession(currentId),
               currentIndex > 0 else { return }
         selectedSessionId = sessions[currentIndex - 1].id
     }
 
     func selectNextSession() {
         guard let currentId = selectedSessionId,
-              let currentIndex = sessions.firstIndex(where: { $0.id == currentId }),
+              let currentIndex = indexOfSession(currentId),
               currentIndex < sessions.count - 1 else { return }
         selectedSessionId = sessions[currentIndex + 1].id
     }
@@ -455,7 +463,7 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     func closeSessionsToLeft(of session: ConnectionSession) {
-        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        guard let index = indexOfSession(session.id) else { return }
         let toClose = Array(sessions[..<index])
         for s in toClose {
             closeSession(s)
@@ -463,7 +471,7 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     func closeSessionsToRight(of session: ConnectionSession) {
-        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        guard let index = indexOfSession(session.id) else { return }
         let toClose = Array(sessions[(index + 1)...])
         for s in toClose {
             closeSession(s)
@@ -505,7 +513,7 @@ final class ConnectionSessionManager: ObservableObject {
             }
         }
 
-        if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
+        if let index = indexOfSession(sessionId) {
             sessions[index].activeTransport = transport
             sessions[index].moshFallbackReason = fallbackReason
         }
@@ -541,7 +549,7 @@ final class ConnectionSessionManager: ObservableObject {
 
     /// Returns true only for the first caller while no live shell exists for the session.
     func tryBeginShellStart(for sessionId: UUID, client: SSHClient) -> Bool {
-        guard let serverId = sessions.first(where: { $0.id == sessionId })?.serverId else {
+        guard let serverId = sessionWithID(sessionId)?.serverId else {
             return false
         }
 
@@ -581,7 +589,8 @@ final class ConnectionSessionManager: ObservableObject {
 
     private func preferredSSHClient(for serverId: UUID, allowPendingStart: Bool) -> SSHClient? {
         if let selectedId = selectedSessionId,
-           let selectedSession = sessions.first(where: { $0.id == selectedId && $0.serverId == serverId }),
+           let selectedSession = sessionWithID(selectedId),
+           selectedSession.serverId == serverId,
            let client = shellRegistry.client(for: selectedSession.id) {
             return client
         }
