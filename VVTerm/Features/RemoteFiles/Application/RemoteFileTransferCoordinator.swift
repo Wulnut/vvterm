@@ -199,7 +199,7 @@ extension RemoteFileBrowserStore {
                 totalUnitCount: try await countLocalTransferUnits(at: urls),
                 onProgress: onProgress
             )
-            try await withRemoteFileService(for: server) { service in
+            try await withRemoteFileService(for: server) { [self] service in
                 for plan in plans {
                     try await self.uploadItem(
                         at: plan.sourceURL,
@@ -234,39 +234,21 @@ extension RemoteFileBrowserStore {
                 for url in urls {
                     let itemInfo = try await self.localItemInfo(at: url)
                     let originalName = itemInfo.name
-                    let remotePath = RemoteFilePath.appending(originalName, to: destinationDirectory)
-
-                    do {
-                        let existingEntry = try await service.lstat(at: remotePath)
-                        let suggestedName = try await self.uniqueUploadName(
-                            for: originalName,
-                            in: destinationDirectory,
-                            using: service,
-                            reservedNames: &reservedNames
+                    let resolution = try await self.conflictResolver.resolveName(
+                        for: originalName,
+                        in: destinationDirectory,
+                        policy: .keepBoth,
+                        using: service,
+                        reservedNames: &reservedNames
+                    )
+                    candidates.append(
+                        LocalUploadPlanCandidate(
+                            sourceURL: url,
+                            originalName: originalName,
+                            existingEntry: resolution.existingEntry,
+                            suggestedName: resolution.hasConflict ? resolution.resolvedName : nil
                         )
-                        candidates.append(
-                            LocalUploadPlanCandidate(
-                                sourceURL: url,
-                                originalName: originalName,
-                                existingEntry: existingEntry,
-                                suggestedName: suggestedName
-                            )
-                        )
-                    } catch let error as RemoteFileBrowserError {
-                        if error == .pathNotFound {
-                            reservedNames.insert(originalName)
-                            candidates.append(
-                                LocalUploadPlanCandidate(
-                                    sourceURL: url,
-                                    originalName: originalName,
-                                    existingEntry: nil,
-                                    suggestedName: nil
-                                )
-                            )
-                        } else {
-                            throw error
-                        }
-                    }
+                    )
                 }
 
                 return candidates
@@ -435,46 +417,6 @@ extension RemoteFileBrowserStore {
         let data = try await loadLocalFileData(from: localURL)
         try await client.upload(data, to: remotePath, permissions: Int32(0o644), strategy: .automatic)
         progressTracker?.advance(currentItemName: targetName)
-    }
-
-    func uniqueUploadName(
-        for originalName: String,
-        in remoteDirectoryPath: String,
-        using client: any RemoteFileService,
-        reservedNames: inout Set<String>
-    ) async throws -> String {
-        let fileURL = URL(fileURLWithPath: originalName)
-        let pathExtension = fileURL.pathExtension
-        let baseName = pathExtension.isEmpty
-            ? originalName
-            : fileURL.deletingPathExtension().lastPathComponent
-
-        for index in 2...10_000 {
-            let candidateName: String
-            if pathExtension.isEmpty {
-                candidateName = "\(baseName) \(index)"
-            } else {
-                candidateName = "\(baseName) \(index).\(pathExtension)"
-            }
-
-            guard !reservedNames.contains(candidateName) else { continue }
-
-            let candidatePath = RemoteFilePath.appending(candidateName, to: remoteDirectoryPath)
-            do {
-                _ = try await client.lstat(at: candidatePath)
-                continue
-            } catch let error as RemoteFileBrowserError {
-                if error == .pathNotFound {
-                    reservedNames.insert(candidateName)
-                    return candidateName
-                }
-                throw error
-            }
-        }
-
-        throw RemoteFileBrowserError.failed(
-            String(localized: "Unable to generate a unique name for the uploaded item.")
-        )
     }
 
     func downloadItem(

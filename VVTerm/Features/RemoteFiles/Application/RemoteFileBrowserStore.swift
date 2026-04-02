@@ -100,6 +100,7 @@ final class RemoteFileBrowserStore: ObservableObject {
     let remoteFileServiceAdapter: SSHSFTPAdapter
     let temporaryStorage: RemoteFileTemporaryStorage
     let previewLoader: RemoteFilePreviewLoader
+    let conflictResolver: RemoteFileConflictResolver
 
     var persistedStates: [String: RemoteFileBrowserPersistedState] = [:]
     var directoryRequestIDs: [UUID: UUID] = [:]
@@ -115,12 +116,14 @@ final class RemoteFileBrowserStore: ObservableObject {
         defaults: UserDefaults = .standard,
         remoteFileServiceAdapter: SSHSFTPAdapter? = nil,
         temporaryStorage: RemoteFileTemporaryStorage = RemoteFileTemporaryStorage(),
-        previewLoader: RemoteFilePreviewLoader = RemoteFilePreviewLoader()
+        previewLoader: RemoteFilePreviewLoader = RemoteFilePreviewLoader(),
+        conflictResolver: RemoteFileConflictResolver = RemoteFileConflictResolver()
     ) {
         self.defaults = defaults
         self.remoteFileServiceAdapter = remoteFileServiceAdapter ?? SSHSFTPAdapter()
         self.temporaryStorage = temporaryStorage
         self.previewLoader = previewLoader
+        self.conflictResolver = conflictResolver
         loadPersistedStates()
     }
 
