@@ -50,7 +50,21 @@ struct ServerStatsView: View {
     let backgroundColor: Color
     var sharedClientProvider: () -> SSHClient? = { nil }
 
-    @StateObject private var statsCollector = ServerStatsCollector()
+    @StateObject private var statsCollector: ServerStatsCollector
+
+    init(
+        server: Server,
+        isVisible: Bool,
+        backgroundColor: Color,
+        sharedClientProvider: @escaping () -> SSHClient? = { nil },
+        statsCollector: ServerStatsCollector
+    ) {
+        self.server = server
+        self.isVisible = isVisible
+        self.backgroundColor = backgroundColor
+        self.sharedClientProvider = sharedClientProvider
+        _statsCollector = StateObject(wrappedValue: statsCollector)
+    }
 
     var body: some View {
         let cardSurfaceStyle = StatsCardSurfaceStyle.make(for: backgroundColor)

@@ -198,7 +198,8 @@ struct ConnectionTerminalContainer: View {
                 server: server,
                 isVisible: selectedView == "stats",
                 backgroundColor: liveTerminalBackgroundColor,
-                sharedClientProvider: { tabManager.sharedStatsClient(for: server.id) }
+                sharedClientProvider: { tabManager.sharedStatsClient(for: server.id) },
+                statsCollector: ServerStatsCollector()
             )
                 .opacity(selectedView == "stats" ? 1 : 0)
                 .allowsHitTesting(selectedView == "stats")

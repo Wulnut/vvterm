@@ -1067,7 +1067,8 @@ struct iOSTerminalView: View {
                 server: server,
                 isVisible: true,
                 backgroundColor: Color(UIColor.systemGroupedBackground),
-                sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) }
+                sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) },
+                statsCollector: ServerStatsCollector()
             )
         }
     }
@@ -1079,7 +1080,8 @@ struct iOSTerminalView: View {
                     server: server,
                     isVisible: true,
                     backgroundColor: Color(UIColor.systemGroupedBackground),
-                    sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) }
+                    sharedClientProvider: { sessionManager.sharedStatsClient(for: server.id) },
+                    statsCollector: ServerStatsCollector()
                 )
                 .zIndex(1)
             }
