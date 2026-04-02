@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class SSHSFTPAdapter {
+    typealias BorrowedClientProvider = @MainActor (UUID) -> SSHClient?
+
     private enum ClientOwnership {
         case borrowed
         case owned
@@ -13,6 +15,16 @@ final class SSHSFTPAdapter {
     }
 
     private var clients: [UUID: ClientRegistration] = [:]
+    private let borrowedClientProvider: BorrowedClientProvider
+
+    init(
+        borrowedClientProvider: @escaping BorrowedClientProvider = { serverId in
+            ConnectionSessionManager.shared.sharedStatsClient(for: serverId)
+                ?? TerminalTabManager.shared.sharedStatsClient(for: serverId)
+        }
+    ) {
+        self.borrowedClientProvider = borrowedClientProvider
+    }
 
     func withService<T>(
         for server: Server,
@@ -48,8 +60,7 @@ final class SSHSFTPAdapter {
     }
 
     private func borrowedClient(for serverId: UUID) -> SSHClient? {
-        ConnectionSessionManager.shared.sharedStatsClient(for: serverId)
-            ?? TerminalTabManager.shared.sharedStatsClient(for: serverId)
+        borrowedClientProvider(serverId)
     }
 
     private func clientRegistration(for server: Server) -> ClientRegistration {

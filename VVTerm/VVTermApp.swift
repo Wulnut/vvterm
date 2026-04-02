@@ -25,7 +25,7 @@ struct VVTermApp: App {
     #else
     @StateObject private var ghosttyApp = Ghostty.App()
     #endif
-    @StateObject private var remoteFileBrowserStore = RemoteFileBrowserStore()
+    @StateObject private var remoteFileBrowserStore = VVTermApp.makeRemoteFileBrowserStore()
     @StateObject private var terminalThemeManager = TerminalThemeManager.shared
     @StateObject private var terminalAccessoryPreferencesManager = TerminalAccessoryPreferencesManager.shared
 
@@ -116,6 +116,45 @@ struct VVTermApp: App {
             VVTermCommands()
         }
         #endif
+    }
+}
+
+private extension VVTermApp {
+    static func makeRemoteFileBrowserStore() -> RemoteFileBrowserStore {
+        let adapter = SSHSFTPAdapter(borrowedClientProvider: { serverId in
+            ConnectionSessionManager.shared.sharedStatsClient(for: serverId)
+                ?? TerminalTabManager.shared.sharedStatsClient(for: serverId)
+        })
+
+        return RemoteFileBrowserStore(
+            remoteFileServiceAdapter: adapter,
+            serverProvider: { serverId in
+                ServerManager.shared.servers.first { $0.id == serverId }
+            },
+            workingDirectoryProvider: { serverId in
+                if let selectedSessionId = ConnectionSessionManager.shared.selectedSessionByServer[serverId],
+                   let path = ConnectionSessionManager.shared.workingDirectory(for: selectedSessionId) {
+                    return path
+                }
+
+                if let anySession = ConnectionSessionManager.shared.sessions.first(where: { $0.serverId == serverId }),
+                   let path = ConnectionSessionManager.shared.workingDirectory(for: anySession.id) {
+                    return path
+                }
+
+                if let selectedTab = TerminalTabManager.shared.selectedTab(for: serverId),
+                   let path = TerminalTabManager.shared.workingDirectory(for: selectedTab.focusedPaneId) {
+                    return path
+                }
+
+                if let anyPane = TerminalTabManager.shared.paneStates.values.first(where: { $0.serverId == serverId }),
+                   let path = TerminalTabManager.shared.workingDirectory(for: anyPane.paneId) {
+                    return path
+                }
+
+                return nil
+            }
+        )
     }
 }
 

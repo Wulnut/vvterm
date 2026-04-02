@@ -4,6 +4,9 @@ import os.log
 
 @MainActor
 final class RemoteFileBrowserStore: ObservableObject {
+    typealias ServerProvider = @MainActor (UUID) -> Server?
+    typealias WorkingDirectoryProvider = @MainActor (UUID) -> String?
+
     enum ToolbarCommandAction: Sendable {
         case upload(destinationPath: String)
         case createFolder(destinationPath: String)
@@ -101,6 +104,8 @@ final class RemoteFileBrowserStore: ObservableObject {
     let temporaryStorage: RemoteFileTemporaryStorage
     let previewLoader: RemoteFilePreviewLoader
     let conflictResolver: RemoteFileConflictResolver
+    let serverProvider: ServerProvider
+    let workingDirectoryProvider: WorkingDirectoryProvider
 
     var persistedStates: [String: RemoteFileBrowserPersistedState] = [:]
     var directoryRequestIDs: [UUID: UUID] = [:]
@@ -117,13 +122,41 @@ final class RemoteFileBrowserStore: ObservableObject {
         remoteFileServiceAdapter: SSHSFTPAdapter? = nil,
         temporaryStorage: RemoteFileTemporaryStorage = RemoteFileTemporaryStorage(),
         previewLoader: RemoteFilePreviewLoader = RemoteFilePreviewLoader(),
-        conflictResolver: RemoteFileConflictResolver = RemoteFileConflictResolver()
+        conflictResolver: RemoteFileConflictResolver = RemoteFileConflictResolver(),
+        serverProvider: @escaping ServerProvider = { serverId in
+            ServerManager.shared.servers.first { $0.id == serverId }
+        },
+        workingDirectoryProvider: @escaping WorkingDirectoryProvider = { serverId in
+            if let selectedSessionId = ConnectionSessionManager.shared.selectedSessionByServer[serverId],
+               let path = ConnectionSessionManager.shared.workingDirectory(for: selectedSessionId) {
+                return path
+            }
+
+            if let anySession = ConnectionSessionManager.shared.sessions.first(where: { $0.serverId == serverId }),
+               let path = ConnectionSessionManager.shared.workingDirectory(for: anySession.id) {
+                return path
+            }
+
+            if let selectedTab = TerminalTabManager.shared.selectedTab(for: serverId),
+               let path = TerminalTabManager.shared.workingDirectory(for: selectedTab.focusedPaneId) {
+                return path
+            }
+
+            if let anyPane = TerminalTabManager.shared.paneStates.values.first(where: { $0.serverId == serverId }),
+               let path = TerminalTabManager.shared.workingDirectory(for: anyPane.paneId) {
+                return path
+            }
+
+            return nil
+        }
     ) {
         self.defaults = defaults
         self.remoteFileServiceAdapter = remoteFileServiceAdapter ?? SSHSFTPAdapter()
         self.temporaryStorage = temporaryStorage
         self.previewLoader = previewLoader
         self.conflictResolver = conflictResolver
+        self.serverProvider = serverProvider
+        self.workingDirectoryProvider = workingDirectoryProvider
         loadPersistedStates()
     }
 
@@ -428,27 +461,7 @@ final class RemoteFileBrowserStore: ObservableObject {
     }
 
     func bestWorkingDirectory(for serverId: UUID) -> String? {
-        if let selectedSessionId = ConnectionSessionManager.shared.selectedSessionByServer[serverId],
-           let path = ConnectionSessionManager.shared.workingDirectory(for: selectedSessionId) {
-            return path
-        }
-
-        if let anySession = ConnectionSessionManager.shared.sessions.first(where: { $0.serverId == serverId }),
-           let path = ConnectionSessionManager.shared.workingDirectory(for: anySession.id) {
-            return path
-        }
-
-        if let selectedTab = TerminalTabManager.shared.selectedTab(for: serverId),
-           let path = TerminalTabManager.shared.workingDirectory(for: selectedTab.focusedPaneId) {
-            return path
-        }
-
-        if let anyPane = TerminalTabManager.shared.paneStates.values.first(where: { $0.serverId == serverId }),
-           let path = TerminalTabManager.shared.workingDirectory(for: anyPane.paneId) {
-            return path
-        }
-
-        return nil
+        workingDirectoryProvider(serverId)
     }
 
     func updateState(for serverId: UUID, mutation: (inout BrowserState) -> Void) {
@@ -458,7 +471,7 @@ final class RemoteFileBrowserStore: ObservableObject {
     }
 
     func server(for serverId: UUID) -> Server? {
-        ServerManager.shared.servers.first { $0.id == serverId }
+        serverProvider(serverId)
     }
 
     func setPendingToolbarCommand(_ command: ToolbarCommand?) {
