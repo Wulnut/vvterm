@@ -43,9 +43,9 @@ final class TerminalThemeManager: ObservableObject {
     private var pendingPreferenceSyncTask: Task<Void, Never>?
     private let foregroundSyncMinimumInterval: TimeInterval = 20
 
-    private init(defaults: UserDefaults = .standard, cloudKit: CloudKitManager = .shared) {
+    private init(defaults: UserDefaults = .standard, cloudKit: CloudKitManager? = nil) {
         self.defaults = defaults
-        self.cloudKit = cloudKit
+        self.cloudKit = cloudKit ?? .shared
         self.lastKnownPreferenceSnapshot = PreferenceSnapshot(
             darkThemeName: defaults.string(forKey: darkThemeKey) ?? "Aizen Dark",
             lightThemeName: defaults.string(forKey: lightThemeKey) ?? "Aizen Light",
