@@ -5,6 +5,19 @@ import os.log
 
 // MARK: - Network Monitor
 
+nonisolated final class ReachabilityCompletionState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didComplete = false
+
+    func completeOnce() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didComplete else { return false }
+        didComplete = true
+        return true
+    }
+}
+
 @MainActor
 final class NetworkMonitor: ObservableObject {
     static let shared = NetworkMonitor()
@@ -91,21 +104,26 @@ final class NetworkMonitor: ObservableObject {
         return await withCheckedContinuation { continuation in
             let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!)
             let connection = NWConnection(to: endpoint, using: .tcp)
+            let completionState = ReachabilityCompletionState()
 
             let timeoutTask = Task {
                 try? await Task.sleep(for: .seconds(5))
                 connection.cancel()
             }
 
+            let finish: @Sendable (Bool) -> Void = { isReachable in
+                guard completionState.completeOnce() else { return }
+                timeoutTask.cancel()
+                connection.cancel()
+                continuation.resume(returning: isReachable)
+            }
+
             connection.stateUpdateHandler = { state in
                 switch state {
                 case .ready:
-                    timeoutTask.cancel()
-                    connection.cancel()
-                    continuation.resume(returning: true)
+                    finish(true)
                 case .failed, .cancelled:
-                    timeoutTask.cancel()
-                    continuation.resume(returning: false)
+                    finish(false)
                 default:
                     break
                 }
