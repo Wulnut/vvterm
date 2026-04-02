@@ -777,6 +777,8 @@ private final class KeyboardInteractiveContext: @unchecked Sendable {
     private nonisolated(unsafe) var _password: String?
     private let lock = NSLock()
 
+    nonisolated init() {}
+
     nonisolated func setPassword(_ password: String?) {
         lock.lock()
         defer { lock.unlock() }

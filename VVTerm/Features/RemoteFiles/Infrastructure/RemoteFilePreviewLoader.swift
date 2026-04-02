@@ -3,6 +3,8 @@ import Foundation
 import os.log
 
 struct RemoteFilePreviewLoader {
+    nonisolated init() {}
+
     func previewKind(for entry: RemoteFileEntry, data: Data) -> RemoteFilePreviewKind {
         RemoteFilePreviewDetector.previewKind(for: entry, data: data)
     }

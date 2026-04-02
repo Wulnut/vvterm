@@ -1,6 +1,8 @@
 import Foundation
 
 struct RemoteFileConflictResolver {
+    nonisolated init() {}
+
     func resolveName(
         for originalName: String,
         in remoteDirectoryPath: String,
