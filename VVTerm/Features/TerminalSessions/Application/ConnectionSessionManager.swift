@@ -1144,6 +1144,11 @@ extension ConnectionSessionManager {
         selectedSessionId == sessionId ? .foreground : .background
     }
 
+    private func disableTmuxAttachment(for sessionId: UUID, status: TmuxStatus) {
+        tmuxResolver.clearAttachmentState(for: sessionId)
+        updateTmuxStatus(sessionId, status: status)
+    }
+
     private func handleTmuxLifecycle(
         sessionId: UUID,
         serverId: UUID,
@@ -1152,8 +1157,7 @@ extension ConnectionSessionManager {
     ) async {
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
             await MainActor.run {
-                self.tmuxResolver.clearAttachmentState(for: sessionId)
-                self.updateTmuxStatus(sessionId, status: .off)
+                self.disableTmuxAttachment(for: sessionId, status: .off)
             }
             return
         }
@@ -1161,8 +1165,7 @@ extension ConnectionSessionManager {
         guard await client.supportsTmuxRuntime() else {
             logger.info("Resolved remote environment does not support tmux runtime for session \(sessionId.uuidString, privacy: .public); using plain SSH shell")
             await MainActor.run {
-                self.tmuxResolver.clearAttachmentState(for: sessionId)
-                self.updateTmuxStatus(sessionId, status: .off)
+                self.disableTmuxAttachment(for: sessionId, status: .off)
             }
             return
         }
@@ -1170,8 +1173,7 @@ extension ConnectionSessionManager {
         let tmuxAvailable = await RemoteTmuxManager.shared.isTmuxAvailable(using: client)
         guard tmuxAvailable else {
             await MainActor.run {
-                self.tmuxResolver.clearAttachmentState(for: sessionId)
-                self.updateTmuxStatus(sessionId, status: .missing)
+                self.disableTmuxAttachment(for: sessionId, status: .missing)
             }
             return
         }
@@ -1223,21 +1225,18 @@ extension ConnectionSessionManager {
         client: SSHClient
     ) async -> (command: String?, skipTmuxLifecycle: Bool) {
         guard tmuxResolver.isTmuxEnabled(for: serverId) else {
-            tmuxResolver.clearAttachmentState(for: sessionId)
-            updateTmuxStatus(sessionId, status: .off)
+            disableTmuxAttachment(for: sessionId, status: .off)
             return (nil, true)
         }
 
         guard await client.supportsTmuxRuntime() else {
-            tmuxResolver.clearAttachmentState(for: sessionId)
-            updateTmuxStatus(sessionId, status: .off)
+            disableTmuxAttachment(for: sessionId, status: .off)
             return (nil, true)
         }
 
         let tmuxAvailable = await RemoteTmuxManager.shared.isTmuxAvailable(using: client)
         guard tmuxAvailable else {
-            tmuxResolver.clearAttachmentState(for: sessionId)
-            updateTmuxStatus(sessionId, status: .missing)
+            disableTmuxAttachment(for: sessionId, status: .missing)
             return (nil, true)
         }
 
