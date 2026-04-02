@@ -79,7 +79,7 @@ VVTerm is moving from app-wide technical buckets toward **feature-first architec
 Current migration status:
 - `Core/Sync` is extracted for CloudKit sync infrastructure.
 - `Core/Security` is extracted for keychain infrastructure.
-- `Core/Network` is extracted for shared connectivity monitoring.
+- `Core/Network` is extracted for shared connectivity monitoring and Cloudflare transport support.
 - `Features/ConnectionViews` is migrated for connection view tab configuration types and state.
 - `Features/RemoteFiles` is fully migrated and is the reference pattern for larger features.
 - `Features/LocalDiscovery` is migrated for discovery-specific code and UI.
