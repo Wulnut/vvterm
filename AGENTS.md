@@ -81,10 +81,11 @@ VVTerm/
 │       ├── Domain/
 │       └── UI/
 ├── GhosttyTerminal/              # libghostty terminal emulation
-├── Models/                       # Legacy app-wide buckets, migrated over time
-├── Managers/
-├── Services/
-└── Views/
+├── Bridge/                       # Vendor and native integration glue
+├── Compatibility/                # Version/platform compatibility helpers
+├── Generated/                    # Build-time generated sources
+├── Resources/                    # Bundled assets, themes, terminfo, l10n
+└── Utilities/                    # Small cross-cutting helpers and extensions
 ```
 
 ## Architecture Direction
@@ -96,7 +97,7 @@ Current migration status:
 - `Core/Security` is extracted for keychain infrastructure.
 - `Core/Network` is extracted for shared connectivity monitoring and Cloudflare transport support.
 - `Core/UI` is extracted for shared view primitives reused across features.
-- `Core/SSH` is extracted for shared SSH bootstrap, known-hosts, key generation, environment detection, and rich-paste support.
+- `Core/SSH` is extracted for shared SSH bootstrap, known-hosts, key generation, environment detection, rich-paste support, tmux/mosh runtime helpers, and `SSHClient`.
 - `Features/ConnectionViews` is migrated for connection view tab configuration types and state.
 - `App/iOS` is extracted for iOS app-shell composition and root navigation views.
 - `Features/RemoteFiles` is fully migrated and is the reference pattern for larger features.
@@ -113,8 +114,8 @@ Current migration status:
 - `Features/TerminalSessions` is migrated for terminal session/tab domain models, session/tab managers, tmux prompt coordination, live activity support, and terminal session UI.
 - `Features/VoiceInput` is migrated for transcription/audio capture infrastructure, MLX model management, and transcription settings UI.
 - `Features/Welcome` is migrated for welcome/onboarding copy and presentation.
-- Other areas may still live in legacy top-level buckets such as `Models`, `Managers`, `Services`, and `Views`.
-- New work inside migrated features must stay inside their `Features/<FeatureName>` subtree and should not add code for those features back into the legacy structure.
+- The legacy top-level source buckets have been removed. New app code should land in `Features`, `Core`, or `App` based on ownership.
+- New work inside migrated features must stay inside their `Features/<FeatureName>` subtree and should not reintroduce app-wide bucket folders.
 
 Feature-first target shape:
 - `Domain`: pure feature types and rules
