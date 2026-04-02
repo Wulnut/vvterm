@@ -173,6 +173,10 @@ final class ConnectionSessionManager: ObservableObject {
         }
     }
 
+    private func clearTmuxRuntimeState(for sessionId: UUID) {
+        tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
+    }
+
     // MARK: - Session Management
 
     var selectedSession: ConnectionSession? {
@@ -391,7 +395,7 @@ final class ConnectionSessionManager: ObservableObject {
     private func clearRuntimeStateForClosedSession(_ sessionId: UUID) {
         cancelAndClearShellHandlers(for: sessionId)
         terminalsNeedingReconnectReset.remove(sessionId)
-        tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
+        clearTmuxRuntimeState(for: sessionId)
     }
 
     private func handleTerminalCloseUI(
@@ -1330,7 +1334,7 @@ extension ConnectionSessionManager {
         for index in sessions.indices where sessions[index].serverId == serverId {
             let sessionId = sessions[index].id
             setTmuxStatus(.off, for: sessionId)
-            tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
+            clearTmuxRuntimeState(for: sessionId)
         }
     }
 }
@@ -1345,7 +1349,7 @@ extension ConnectionSessionManager {
         let allSessionIds = Set(sessions.map(\.id))
             .union(shellRegistry.startsInFlight.keys)
         for sessionId in allSessionIds {
-            tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
+            clearTmuxRuntimeState(for: sessionId)
         }
 
         var uniqueClients: [ObjectIdentifier: SSHClient] = [:]
