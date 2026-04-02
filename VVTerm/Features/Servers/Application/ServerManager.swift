@@ -171,6 +171,14 @@ final class ServerManager: ObservableObject {
         await syncCoordinator.drainPendingMutations()
     }
 
+    private func persistLocalMutations(logMessage: String? = nil) async {
+        saveLocalData()
+        await drainPendingCloudKitMutations()
+        if let logMessage {
+            logger.info("\(logMessage)")
+        }
+    }
+
     func seedReviewDataIfNeeded() {
         guard servers.isEmpty else { return }
 
@@ -612,9 +620,7 @@ final class ServerManager: ObservableObject {
 
         servers.append(newServer)
         enqueuePendingServerUpsert(newServer)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Added server: \(newServer.name)")
+        await persistLocalMutations(logMessage: "Added server: \(newServer.name)")
     }
 
     func updateServer(_ server: Server) async throws {
@@ -647,9 +653,7 @@ final class ServerManager: ObservableObject {
             servers[index] = updatedServer
         }
         enqueuePendingServerUpsert(updatedServer)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Updated server: \(updatedServer.name)")
+        await persistLocalMutations(logMessage: "Updated server: \(updatedServer.name)")
     }
 
     func deleteServer(_ server: Server) async throws {
@@ -657,9 +661,7 @@ final class ServerManager: ObservableObject {
 
         servers.removeAll { $0.id == server.id }
         enqueuePendingServerDelete(server)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Deleted server: \(server.name)")
+        await persistLocalMutations(logMessage: "Deleted server: \(server.name)")
     }
 
     func updateLastConnected(for server: Server) async {
@@ -711,9 +713,7 @@ final class ServerManager: ObservableObject {
 
         workspaces.append(newWorkspace)
         enqueuePendingWorkspaceUpsert(newWorkspace)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Added workspace: \(newWorkspace.name)")
+        await persistLocalMutations(logMessage: "Added workspace: \(newWorkspace.name)")
     }
 
     func updateWorkspace(_ workspace: Workspace) async throws {
@@ -735,9 +735,7 @@ final class ServerManager: ObservableObject {
             workspaces[index] = updatedWorkspace
         }
         enqueuePendingWorkspaceUpsert(updatedWorkspace)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Updated workspace: \(updatedWorkspace.name)")
+        await persistLocalMutations(logMessage: "Updated workspace: \(updatedWorkspace.name)")
     }
 
     func deleteWorkspace(_ workspace: Workspace) async throws {
@@ -749,9 +747,7 @@ final class ServerManager: ObservableObject {
 
         workspaces.removeAll { $0.id == workspace.id }
         enqueuePendingWorkspaceDelete(workspace)
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Deleted workspace: \(workspace.name)")
+        await persistLocalMutations(logMessage: "Deleted workspace: \(workspace.name)")
     }
 
     func reorderWorkspaces(from source: IndexSet, to destination: Int) async throws {
@@ -775,9 +771,7 @@ final class ServerManager: ObservableObject {
             workspaces[index] = updated
             enqueuePendingWorkspaceUpsert(updated)
         }
-        saveLocalData()
-        await drainPendingCloudKitMutations()
-        logger.info("Reordered workspaces")
+        await persistLocalMutations(logMessage: "Reordered workspaces")
     }
 
     // MARK: - Queries
