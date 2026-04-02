@@ -1611,29 +1611,45 @@ actor SSHSession {
         let sftp = try await ensureSFTPSession()
         let normalizedSource = RemoteFilePath.normalize(sourcePath)
         let normalizedDestination = RemoteFilePath.normalize(destinationPath)
-        let renameFlags =
+        let renameFlagCandidates: [Int] = [
             Int(LIBSSH2_SFTP_RENAME_OVERWRITE) |
-            Int(LIBSSH2_SFTP_RENAME_ATOMIC) |
-            Int(LIBSSH2_SFTP_RENAME_NATIVE)
+                Int(LIBSSH2_SFTP_RENAME_ATOMIC) |
+                Int(LIBSSH2_SFTP_RENAME_NATIVE),
+            Int(LIBSSH2_SFTP_RENAME_OVERWRITE) |
+                Int(LIBSSH2_SFTP_RENAME_NATIVE),
+            Int(LIBSSH2_SFTP_RENAME_OVERWRITE),
+            0
+        ]
 
-        try await performSFTPMutation(
-            at: normalizedSource,
-            sftp: sftp,
-            operation: "rename"
-        ) { sftpHandle, sourcePtr, sourceLength in
-            normalizedDestination.withCString { destinationPtr in
-                Int(
-                    libssh2_sftp_rename_ex(
-                        sftpHandle,
-                        sourcePtr,
-                        sourceLength,
-                        destinationPtr,
-                        UInt32(normalizedDestination.utf8.count),
-                        renameFlags
-                    )
-                )
+        var lastError: Error?
+
+        for flags in renameFlagCandidates {
+            do {
+                try await performSFTPMutation(
+                    at: normalizedSource,
+                    sftp: sftp,
+                    operation: "rename"
+                ) { sftpHandle, sourcePtr, sourceLength in
+                    normalizedDestination.withCString { destinationPtr in
+                        Int(
+                            libssh2_sftp_rename_ex(
+                                sftpHandle,
+                                sourcePtr,
+                                sourceLength,
+                                destinationPtr,
+                                UInt32(normalizedDestination.utf8.count),
+                                flags
+                            )
+                        )
+                    }
+                }
+                return
+            } catch {
+                lastError = error
             }
         }
+
+        throw lastError ?? RemoteFileBrowserError.failed(String(localized: "Failed to rename item."))
     }
 
     func deleteFile(at path: String) async throws {
