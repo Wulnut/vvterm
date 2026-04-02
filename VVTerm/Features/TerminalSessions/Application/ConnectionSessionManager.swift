@@ -293,9 +293,7 @@ final class ConnectionSessionManager: ObservableObject {
         )
 
         // Disconnect SSH client in background
-        Task.detached(priority: .high) { [weak self] in
-            await self?.unregisterSSHClient(for: sessionId)
-        }
+        scheduleSSHUnregister(for: sessionId, priority: .high)
 
         if let selectedId = replacementSessionId ?? selectedSessionId,
            let selectedSession = sessionWithID(selectedId) {
@@ -328,9 +326,7 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     private func clearRuntimeStateForClosedSession(_ sessionId: UUID) {
-        shellCancelHandlers[sessionId]?()
-        shellCancelHandlers.removeValue(forKey: sessionId)
-        shellSuspendHandlers.removeValue(forKey: sessionId)
+        cancelAndClearShellHandlers(for: sessionId)
         terminalsNeedingReconnectReset.remove(sessionId)
         tmuxResolver.clearRuntimeState(for: sessionId, setPrompt: setTmuxAttachPrompt)
     }
@@ -435,9 +431,7 @@ final class ConnectionSessionManager: ObservableObject {
     func handleShellExit(for sessionId: UUID) {
         updateSessionState(sessionId, to: .disconnected)
         markTerminalForReconnectReset(for: sessionId)
-        Task.detached { [weak self] in
-            await self?.unregisterSSHClient(for: sessionId)
-        }
+        scheduleSSHUnregister(for: sessionId)
     }
 
     /// Disconnect all sessions for a specific server
@@ -718,14 +712,10 @@ final class ConnectionSessionManager: ObservableObject {
             }
 
             // Also cleanup associated SSH shell
-            Task.detached { [weak self] in
-                await self?.unregisterSSHClient(for: oldestId)
-            }
+            scheduleSSHUnregister(for: oldestId)
 
             // Call shell cancel handler
-            shellCancelHandlers[oldestId]?()
-            shellCancelHandlers.removeValue(forKey: oldestId)
-            shellSuspendHandlers.removeValue(forKey: oldestId)
+            cancelAndClearShellHandlers(for: oldestId)
         }
     }
 
@@ -783,6 +773,18 @@ final class ConnectionSessionManager: ObservableObject {
 
     func consumeTerminalReconnectReset(for sessionId: UUID) -> Bool {
         terminalsNeedingReconnectReset.remove(sessionId) != nil
+    }
+
+    private func cancelAndClearShellHandlers(for sessionId: UUID) {
+        shellCancelHandlers[sessionId]?()
+        shellCancelHandlers.removeValue(forKey: sessionId)
+        shellSuspendHandlers.removeValue(forKey: sessionId)
+    }
+
+    private func scheduleSSHUnregister(for sessionId: UUID, priority: TaskPriority = .utility) {
+        Task.detached(priority: priority) { [weak self] in
+            await self?.unregisterSSHClient(for: sessionId)
+        }
     }
 
     /// Marks an existing terminal as recently used without fetching it for body evaluation.
