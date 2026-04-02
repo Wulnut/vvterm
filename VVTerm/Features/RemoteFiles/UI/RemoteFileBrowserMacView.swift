@@ -100,13 +100,6 @@ extension RemoteFileBrowserView {
                     message: error.errorDescription ?? error.localizedDescription
                 )
                 .padding(32)
-            } else if snapshot.entries.isEmpty && !snapshot.isLoadingDirectory {
-                RemoteFileEmptyState(
-                    icon: "folder",
-                    title: String(localized: "Empty Folder"),
-                    message: String(localized: "This directory does not contain any visible items.")
-                )
-                .padding(32)
             }
         }
     }
@@ -258,23 +251,16 @@ extension RemoteFileBrowserView {
             return
         }
 
-        Task { await browser.activate(entry, serverId: server.id) }
+        browser.focus(entry, serverId: server.id)
     }
 
     func handleMacOSDroppedURLs(_ urls: [URL], to destinationPath: String) {
         guard !urls.isEmpty else { return }
-        performTransfer(
-            title: String(localized: "Uploading"),
-            initialMessage: String(localized: "Preparing dropped files."),
-            successMessage: String(localized: "Upload complete.")
-        ) { onProgress in
-            try await browser.uploadFiles(
-                at: urls,
-                to: destinationPath,
-                serverId: server.id,
-                onProgress: onProgress
-            )
-        }
+        beginUploadFlow(
+            urls: urls,
+            to: destinationPath,
+            initialMessage: String(localized: "Preparing dropped files.")
+        )
     }
 
     func handleMacOSDroppedRemotePayload(_ payload: RemoteFileDragPayload, to destinationPath: String) {

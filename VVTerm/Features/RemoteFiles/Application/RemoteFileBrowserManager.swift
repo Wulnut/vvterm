@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Combine
 import os.log
@@ -21,6 +22,30 @@ final class RemoteFileBrowserManager: ObservableObject {
         let completedUnitCount: Int
         let totalUnitCount: Int
         let currentItemName: String
+    }
+
+    struct LocalUploadPlanItem: Identifiable, Sendable {
+        let sourceURL: URL
+        let remoteName: String
+
+        var id: String {
+            "\(sourceURL.absoluteString)->\(remoteName)"
+        }
+    }
+
+    struct LocalUploadPlanCandidate: Identifiable, Sendable {
+        let sourceURL: URL
+        let originalName: String
+        let existingEntry: RemoteFileEntry?
+        let suggestedName: String?
+
+        var id: String {
+            "\(sourceURL.absoluteString)->\(originalName)"
+        }
+
+        var hasConflict: Bool {
+            existingEntry != nil
+        }
     }
 
     struct BrowserState: Sendable {
@@ -288,6 +313,7 @@ final class RemoteFileBrowserManager: ObservableObject {
             return
         }
         if currentState.viewerPayload?.entry.path == entry.path,
+           currentState.viewerPayload?.previewKind != .unavailable,
            !(currentState.viewerPayload?.requiresExplicitDownload == true && allowLargeDownloads) {
             return
         }
@@ -371,8 +397,15 @@ final class RemoteFileBrowserManager: ObservableObject {
                         try await withClient(for: server) { client in
                             try await client.downloadFile(at: entry.path, to: tempURL)
                         }
-                        previewFileURL = tempURL
-                        unavailableMessage = nil
+                        if await validateDownloadedPreview(at: tempURL, kind: previewKind) {
+                            previewFileURL = tempURL
+                            unavailableMessage = nil
+                        } else {
+                            previewFileURL = tempURL
+                            unavailableMessage = String(
+                                localized: "This file downloaded successfully, but macOS could not open it for inline preview."
+                            )
+                        }
                     } catch {
                         try? FileManager.default.removeItem(at: tempURL)
                         throw error
@@ -438,6 +471,17 @@ final class RemoteFileBrowserManager: ObservableObject {
             }
         case .file, .other:
             selectFile(entry, serverId: serverId)
+        }
+    }
+
+    func focus(_ entry: RemoteFileEntry, serverId: UUID) {
+        viewerRequestIDs[serverId] = UUID()
+        cleanupPreviewArtifact(for: state(for: serverId).viewerPayload)
+        updateState(for: serverId) { state in
+            state.selectedEntryPath = entry.path
+            state.viewerPayload = nil
+            state.viewerError = nil
+            state.isLoadingViewer = false
         }
     }
 
@@ -595,6 +639,16 @@ final class RemoteFileBrowserManager: ObservableObject {
             return try await client.lstat(at: entry.path)
         }
 
+        let requestedPermissionBits = permissions & 0o7777
+        let updatedPermissionBits = (updatedEntry.permissions ?? 0) & 0o7777
+        if updatedPermissionBits != requestedPermissionBits {
+            throw RemoteFileBrowserError.failed(
+                String(
+                    localized: "This server accepted the request, but the file permissions did not change. Some remote systems, including many Windows SFTP servers, do not support POSIX chmod."
+                )
+            )
+        }
+
         updateState(for: serverId) { state in
             if let index = state.entries.firstIndex(where: { $0.path == entry.path }) {
                 state.entries[index] = updatedEntry
@@ -659,21 +713,38 @@ final class RemoteFileBrowserManager: ObservableObject {
         serverId: UUID,
         onProgress: (@MainActor @Sendable (TransferProgress) -> Void)? = nil
     ) async throws {
+        let plans = urls.map { LocalUploadPlanItem(sourceURL: $0, remoteName: $0.lastPathComponent) }
+        try await uploadFiles(
+            plans: plans,
+            to: directoryPath,
+            serverId: serverId,
+            onProgress: onProgress
+        )
+    }
+
+    func uploadFiles(
+        plans: [LocalUploadPlanItem],
+        to directoryPath: String,
+        serverId: UUID,
+        onProgress: (@MainActor @Sendable (TransferProgress) -> Void)? = nil
+    ) async throws {
         guard let server = server(for: serverId) else {
             throw RemoteFileBrowserError.disconnected
         }
 
         let destinationDirectory = RemoteFilePath.normalize(directoryPath)
+        let urls = plans.map(\.sourceURL)
         try await withSecurityScopedAccess(to: urls) {
             let progressTracker = TransferProgressTracker(
                 totalUnitCount: try await countLocalTransferUnits(at: urls),
                 onProgress: onProgress
             )
             try await withClient(for: server) { client in
-                for url in urls {
+                for plan in plans {
                     try await self.uploadItem(
-                        at: url,
+                        at: plan.sourceURL,
                         to: destinationDirectory,
+                        remoteName: plan.remoteName,
                         using: client,
                         progressTracker: progressTracker
                     )
@@ -683,6 +754,64 @@ final class RemoteFileBrowserManager: ObservableObject {
 
         clearViewer(serverId: serverId)
         await refresh(serverId: serverId)
+    }
+
+    func prepareLocalUploadPlan(
+        at urls: [URL],
+        to directoryPath: String,
+        serverId: UUID
+    ) async throws -> [LocalUploadPlanCandidate] {
+        guard let server = server(for: serverId) else {
+            throw RemoteFileBrowserError.disconnected
+        }
+
+        let destinationDirectory = RemoteFilePath.normalize(directoryPath)
+        return try await withSecurityScopedAccess(to: urls) {
+            try await withClient(for: server) { client in
+                var reservedNames: Set<String> = []
+                var candidates: [LocalUploadPlanCandidate] = []
+
+                for url in urls {
+                    let itemInfo = try await self.localItemInfo(at: url)
+                    let originalName = itemInfo.name
+                    let remotePath = RemoteFilePath.appending(originalName, to: destinationDirectory)
+
+                    do {
+                        let existingEntry = try await client.lstat(at: remotePath)
+                        let suggestedName = try await self.uniqueUploadName(
+                            for: originalName,
+                            in: destinationDirectory,
+                            using: client,
+                            reservedNames: &reservedNames
+                        )
+                        candidates.append(
+                            LocalUploadPlanCandidate(
+                                sourceURL: url,
+                                originalName: originalName,
+                                existingEntry: existingEntry,
+                                suggestedName: suggestedName
+                            )
+                        )
+                    } catch let error as RemoteFileBrowserError {
+                        if error == .pathNotFound {
+                            reservedNames.insert(originalName)
+                            candidates.append(
+                                LocalUploadPlanCandidate(
+                                    sourceURL: url,
+                                    originalName: originalName,
+                                    existingEntry: nil,
+                                    suggestedName: nil
+                                )
+                            )
+                        } else {
+                            throw error
+                        }
+                    }
+                }
+
+                return candidates
+            }
+        }
     }
 
     func copyEntries(
@@ -867,14 +996,7 @@ final class RemoteFileBrowserManager: ObservableObject {
     }
 
     private func selectFile(_ entry: RemoteFileEntry, serverId: UUID) {
-        viewerRequestIDs[serverId] = UUID()
-        cleanupPreviewArtifact(for: state(for: serverId).viewerPayload)
-        updateState(for: serverId) { state in
-            state.selectedEntryPath = entry.path
-            state.viewerPayload = nil
-            state.viewerError = nil
-            state.isLoadingViewer = false
-        }
+        focus(entry, serverId: serverId)
     }
 
     private func makePreviewFileURL(for entry: RemoteFileEntry) throws -> URL {
@@ -896,6 +1018,26 @@ final class RemoteFileBrowserManager: ObservableObject {
     private func cleanupPreviewArtifact(for payload: RemoteFileViewerPayload?) {
         guard let previewFileURL = payload?.previewFileURL else { return }
         try? FileManager.default.removeItem(at: previewFileURL)
+    }
+
+    private func validateDownloadedPreview(at url: URL, kind: RemoteFilePreviewKind) async -> Bool {
+        switch kind {
+        case .text, .unavailable:
+            return false
+        case .image:
+            return FileManager.default.fileExists(atPath: url.path)
+        case .video:
+            let asset = AVURLAsset(url: url)
+            do {
+                let isPlayable = try await asset.load(.isPlayable)
+                let hasProtectedContent = try await asset.load(.hasProtectedContent)
+                let videoTracks = try await asset.loadTracks(withMediaType: .video)
+                return isPlayable && !hasProtectedContent && !videoTracks.isEmpty
+            } catch {
+                logger.error("Failed to validate remote video preview at \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
     }
 
     private func borrowedClient(for serverId: UUID) -> SSHClient? {
@@ -1027,11 +1169,13 @@ final class RemoteFileBrowserManager: ObservableObject {
     private func uploadItem(
         at localURL: URL,
         to remoteDirectoryPath: String,
+        remoteName: String? = nil,
         using client: SSHClient,
         progressTracker: TransferProgressTracker? = nil
     ) async throws {
         let itemInfo = try await localItemInfo(at: localURL)
-        let remotePath = RemoteFilePath.appending(itemInfo.name, to: remoteDirectoryPath)
+        let targetName = remoteName ?? itemInfo.name
+        let remotePath = RemoteFilePath.appending(targetName, to: remoteDirectoryPath)
 
         if itemInfo.isDirectory {
             try await ensureRemoteDirectoryExists(
@@ -1039,7 +1183,7 @@ final class RemoteFileBrowserManager: ObservableObject {
                 permissions: 0o755,
                 using: client
             )
-            progressTracker?.advance(currentItemName: itemInfo.name)
+            progressTracker?.advance(currentItemName: targetName)
             let children = try await localDirectoryContents(at: localURL)
             for child in children {
                 try await uploadItem(
@@ -1054,7 +1198,47 @@ final class RemoteFileBrowserManager: ObservableObject {
 
         let data = try await loadLocalFileData(from: localURL)
         try await client.upload(data, to: remotePath, permissions: 0o644)
-        progressTracker?.advance(currentItemName: itemInfo.name)
+        progressTracker?.advance(currentItemName: targetName)
+    }
+
+    private func uniqueUploadName(
+        for originalName: String,
+        in remoteDirectoryPath: String,
+        using client: SSHClient,
+        reservedNames: inout Set<String>
+    ) async throws -> String {
+        let fileURL = URL(fileURLWithPath: originalName)
+        let pathExtension = fileURL.pathExtension
+        let baseName = pathExtension.isEmpty
+            ? originalName
+            : fileURL.deletingPathExtension().lastPathComponent
+
+        for index in 2...10_000 {
+            let candidateName: String
+            if pathExtension.isEmpty {
+                candidateName = "\(baseName) \(index)"
+            } else {
+                candidateName = "\(baseName) \(index).\(pathExtension)"
+            }
+
+            guard !reservedNames.contains(candidateName) else { continue }
+
+            let candidatePath = RemoteFilePath.appending(candidateName, to: remoteDirectoryPath)
+            do {
+                _ = try await client.lstat(at: candidatePath)
+                continue
+            } catch let error as RemoteFileBrowserError {
+                if error == .pathNotFound {
+                    reservedNames.insert(candidateName)
+                    return candidateName
+                }
+                throw error
+            }
+        }
+
+        throw RemoteFileBrowserError.failed(
+            String(localized: "Unable to generate a unique name for the uploaded item.")
+        )
     }
 
     private func downloadItem(

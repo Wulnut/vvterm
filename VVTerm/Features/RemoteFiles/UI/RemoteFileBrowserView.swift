@@ -37,7 +37,9 @@ struct RemoteFileBrowserView: View {
     @State var permissionDraft = RemoteFilePermissionDraft(accessBits: 0)
     @State var permissionOriginalAccessBits: UInt32 = 0
     @State var permissionPreservedBits: UInt32 = 0
+    @State var permissionFileTypeBits: UInt32 = 0
     @State var isPermissionSubmitting = false
+    @State var permissionErrorMessage: String?
     @State var operationErrorMessage: String?
     @State var transferStatus: TransferStatus?
     @State var isDropTargeted = false
@@ -84,6 +86,9 @@ struct RemoteFileBrowserView: View {
         let completedUnitCount: Int?
         let totalUnitCount: Int?
         let phase: Phase
+        let fileURL: URL?
+        let fileName: String?
+        let filePath: String?
     }
 
     var snapshot: Snapshot {
@@ -309,6 +314,7 @@ struct RemoteFileBrowserView: View {
                 draft: $permissionDraft,
                 originalAccessBits: permissionOriginalAccessBits,
                 preservedBits: permissionPreservedBits,
+                errorMessage: permissionErrorMessage,
                 isSubmitting: isPermissionSubmitting,
                 onCancel: resetPermissionEditor,
                 onApply: applyPermissions
@@ -438,7 +444,10 @@ struct RemoteFileBrowserView: View {
         title: String,
         message: String,
         completedUnitCount: Int? = nil,
-        totalUnitCount: Int? = nil
+        totalUnitCount: Int? = nil,
+        fileURL: URL? = nil,
+        fileName: String? = nil,
+        filePath: String? = nil
     ) {
         transferStatus = TransferStatus(
             id: id,
@@ -446,7 +455,10 @@ struct RemoteFileBrowserView: View {
             message: message,
             completedUnitCount: completedUnitCount,
             totalUnitCount: totalUnitCount,
-            phase: .running
+            phase: .running,
+            fileURL: fileURL,
+            fileName: fileName,
+            filePath: filePath
         )
     }
 
@@ -465,12 +477,22 @@ struct RemoteFileBrowserView: View {
             message: message,
             completedUnitCount: completedUnitCount,
             totalUnitCount: totalUnitCount,
-            phase: .running
+            phase: .running,
+            fileURL: transferStatus?.fileURL,
+            fileName: transferStatus?.fileName,
+            filePath: transferStatus?.filePath
         )
     }
 
     @MainActor
-    func completeTransferStatus(id: UUID, title: String, message: String) {
+    func completeTransferStatus(
+        id: UUID,
+        title: String,
+        message: String,
+        fileURL: URL? = nil,
+        fileName: String? = nil,
+        filePath: String? = nil
+    ) {
         guard transferStatus?.id == id else { return }
         transferStatus = TransferStatus(
             id: id,
@@ -478,7 +500,10 @@ struct RemoteFileBrowserView: View {
             message: message,
             completedUnitCount: transferStatus?.totalUnitCount,
             totalUnitCount: transferStatus?.totalUnitCount,
-            phase: .succeeded
+            phase: .succeeded,
+            fileURL: fileURL ?? transferStatus?.fileURL,
+            fileName: fileName ?? transferStatus?.fileName,
+            filePath: filePath ?? transferStatus?.filePath
         )
 
         Task { @MainActor in
@@ -494,6 +519,9 @@ struct RemoteFileBrowserView: View {
         title: String,
         initialMessage: String,
         successMessage: String,
+        successFileURL: URL? = nil,
+        successFileName: String? = nil,
+        successFilePath: String? = nil,
         operation: @escaping (@escaping @MainActor (RemoteFileBrowserManager.TransferProgress) -> Void) async throws -> Void
     ) {
         let transferID = UUID()
@@ -533,7 +561,10 @@ struct RemoteFileBrowserView: View {
                         completeTransferStatus(
                             id: transferID,
                             title: title,
-                            message: successMessage
+                            message: successMessage,
+                            fileURL: successFileURL,
+                            fileName: successFileName,
+                            filePath: successFilePath
                         )
                     }
                 }
@@ -552,12 +583,18 @@ struct RemoteFileBrowserView: View {
         title: String,
         initialMessage: String,
         successMessage: String,
+        successFileURL: URL? = nil,
+        successFileName: String? = nil,
+        successFilePath: String? = nil,
         operation: @escaping () async throws -> Void
     ) {
         performTransfer(
             title: title,
             initialMessage: initialMessage,
-            successMessage: successMessage
+            successMessage: successMessage,
+            successFileURL: successFileURL,
+            successFileName: successFileName,
+            successFilePath: successFilePath
         ) { _ in
             try await operation()
         }
@@ -887,6 +924,8 @@ struct RemoteFileBrowserView: View {
         permissionDraft = RemoteFilePermissionDraft(accessBits: permissions)
         permissionOriginalAccessBits = permissions & 0o777
         permissionPreservedBits = entry.specialPermissionBits
+        permissionFileTypeBits = permissions & UInt32(LIBSSH2_SFTP_S_IFMT)
+        permissionErrorMessage = nil
         isPermissionSubmitting = false
     }
 
@@ -920,18 +959,11 @@ struct RemoteFileBrowserView: View {
         switch result {
         case .success(let urls):
             guard !urls.isEmpty else { return }
-            performTransfer(
-                title: String(localized: "Uploading"),
-                initialMessage: String(localized: "Preparing files for upload."),
-                successMessage: String(localized: "Upload complete.")
-            ) { onProgress in
-                try await browser.uploadFiles(
-                    at: urls,
-                    to: destinationPath,
-                    serverId: server.id,
-                    onProgress: onProgress
-                )
-            }
+            beginUploadFlow(
+                urls: urls,
+                to: destinationPath,
+                initialMessage: String(localized: "Preparing files for upload.")
+            )
         case .failure(let error):
             presentOperationError(error)
         }
@@ -958,6 +990,42 @@ struct RemoteFileBrowserView: View {
         }
     }
 
+    func beginUploadFlow(urls: [URL], to destinationPath: String, initialMessage: String) {
+        Task {
+            do {
+                let candidates = try await browser.prepareLocalUploadPlan(
+                    at: urls,
+                    to: destinationPath,
+                    serverId: server.id
+                )
+                let plans = candidates.map { candidate in
+                    RemoteFileBrowserManager.LocalUploadPlanItem(
+                        sourceURL: candidate.sourceURL,
+                        remoteName: candidate.suggestedName ?? candidate.originalName
+                    )
+                }
+                await MainActor.run {
+                    performTransfer(
+                        title: String(localized: "Uploading"),
+                        initialMessage: initialMessage,
+                        successMessage: String(localized: "Upload complete.")
+                    ) { onProgress in
+                        try await browser.uploadFiles(
+                            plans: plans,
+                            to: destinationPath,
+                            serverId: server.id,
+                            onProgress: onProgress
+                        )
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    presentOperationError(error)
+                }
+            }
+        }
+    }
+
     func handleCurrentDirectoryDrop(_ providers: [NSItemProvider], to destinationPath: String) -> Bool {
         if handleRemoteDrop(providers, to: destinationPath) {
             return true
@@ -972,18 +1040,21 @@ struct RemoteFileBrowserView: View {
         }
         guard !fileURLProviders.isEmpty else { return false }
 
-        performTransfer(
-            title: String(localized: "Uploading"),
-            initialMessage: String(localized: "Preparing dropped files."),
-            successMessage: String(localized: "Upload complete.")
-        ) { onProgress in
-            let urls = try await loadDroppedURLs(from: fileURLProviders)
-            try await browser.uploadFiles(
-                at: urls,
-                to: destinationPath,
-                serverId: server.id,
-                onProgress: onProgress
-            )
+        Task {
+            do {
+                let urls = try await loadDroppedURLs(from: fileURLProviders)
+                await MainActor.run {
+                    beginUploadFlow(
+                        urls: urls,
+                        to: destinationPath,
+                        initialMessage: String(localized: "Preparing dropped files.")
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    presentOperationError(error)
+                }
+            }
         }
 
         return true
@@ -1443,11 +1514,12 @@ struct RemoteFileBrowserView: View {
 
     func applyPermissions() {
         guard let entry = permissionTargetEntry, !isPermissionSubmitting else { return }
+        permissionErrorMessage = nil
         isPermissionSubmitting = true
 
         performOperation(
             operation: {
-                let requestedPermissions = permissionPreservedBits | permissionDraft.accessBits
+                let requestedPermissions = permissionFileTypeBits | permissionPreservedBits | permissionDraft.accessBits
                 try await browser.setPermissions(entry, permissions: requestedPermissions, serverId: server.id)
             },
             onSuccess: { _ in
@@ -1455,7 +1527,7 @@ struct RemoteFileBrowserView: View {
             },
             onFailure: { error in
                 isPermissionSubmitting = false
-                presentOperationError(error)
+                permissionErrorMessage = remoteOperationErrorMessage(for: error)
             }
         )
     }
@@ -1465,6 +1537,8 @@ struct RemoteFileBrowserView: View {
         permissionDraft = RemoteFilePermissionDraft(accessBits: 0)
         permissionOriginalAccessBits = 0
         permissionPreservedBits = 0
+        permissionFileTypeBits = 0
+        permissionErrorMessage = nil
         isPermissionSubmitting = false
     }
 
@@ -1542,18 +1616,11 @@ struct RemoteFileBrowserView: View {
         let urls = panel.urls
         guard !urls.isEmpty else { return }
 
-        performTransfer(
-            title: String(localized: "Uploading"),
-            initialMessage: String(localized: "Preparing files for upload."),
-            successMessage: String(localized: "Upload complete.")
-        ) { onProgress in
-            try await browser.uploadFiles(
-                at: urls,
-                to: remotePath,
-                serverId: server.id,
-                onProgress: onProgress
-            )
-        }
+        beginUploadFlow(
+            urls: urls,
+            to: remotePath,
+            initialMessage: String(localized: "Preparing files for upload.")
+        )
     }
 
     func presentMacOSDownloadPanel(for entry: RemoteFileEntry) {
@@ -1570,7 +1637,10 @@ struct RemoteFileBrowserView: View {
         performTransfer(
             title: String(localized: "Downloading"),
             initialMessage: String(localized: "Downloading remote file."),
-            successMessage: String(localized: "Download complete.")
+            successMessage: String(localized: "Download complete."),
+            successFileURL: destinationURL,
+            successFileName: destinationURL.lastPathComponent,
+            successFilePath: destinationURL.path
         ) {
             try await browser.downloadFile(
                 at: entry.path,

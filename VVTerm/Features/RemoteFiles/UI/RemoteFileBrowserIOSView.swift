@@ -177,14 +177,6 @@ extension RemoteFileBrowserView {
             )
         }
 
-        if snapshot.entries.isEmpty && !snapshot.isLoadingDirectory {
-            return EmptyStateContent(
-                icon: "folder",
-                title: String(localized: "Empty Folder"),
-                message: String(localized: "This directory does not contain any visible items.")
-            )
-        }
-
         if displayedEntries.isEmpty && !snapshot.isLoadingDirectory {
             return EmptyStateContent(
                 icon: "magnifyingglass",

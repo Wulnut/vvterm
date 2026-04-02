@@ -448,12 +448,77 @@ struct RemoteFileInspectorView: View {
     }
 
     private func previewUnavailableState(_ payload: RemoteFileViewerPayload) -> some View {
-        RemoteFileEmptyState(
-            icon: "doc.text.magnifyingglass",
-            title: String(localized: "Preview Unavailable"),
-            message: payload.unavailableMessage
-                ?? String(localized: "Inline preview is unavailable for this file.")
-        )
+        VStack {
+            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: 12) {
+                RemoteFileEmptyState(
+                    icon: "doc.text.magnifyingglass",
+                    title: String(localized: "Preview Unavailable"),
+                    message: unavailablePreviewMessage(for: payload)
+                )
+
+                unavailablePreviewAction(payload)
+            }
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 320)
+    }
+
+    @ViewBuilder
+    private func unavailablePreviewAction(_ payload: RemoteFileViewerPayload) -> some View {
+        #if os(macOS)
+        if let previewFileURL = payload.previewFileURL {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([previewFileURL])
+            } label: {
+                Label(String(localized: "Reveal in Finder"), systemImage: "finder")
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+        } else if canShare(payload.entry) {
+            Button {
+                onShare?(payload.entry)
+            } label: {
+                Label(String(localized: "Open in Another App"), systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+        }
+        #else
+        if canDownload(payload.entry) {
+            Button {
+                onDownload?(payload.entry)
+            } label: {
+                Label(String(localized: "Save to Files"), systemImage: "arrow.down.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+        }
+        #endif
+    }
+
+    private func unavailablePreviewMessage(for payload: RemoteFileViewerPayload) -> String {
+        #if os(macOS)
+        if payload.previewKind == .video, payload.previewFileURL != nil {
+            return String(
+                localized: "Inline video preview is unreliable for this downloaded file on macOS. Reveal it in Finder and open it with another app such as VLC or IINA."
+            )
+        }
+        #endif
+
+        if let message = payload.unavailableMessage {
+            if message == String(localized: "This file downloaded successfully, but macOS could not open it for inline preview.") {
+                return String(
+                    localized: "This file downloaded successfully, but macOS could not decode it for inline preview. Reveal it in Finder and open it with another app such as VLC or IINA."
+                )
+            }
+            return message
+        }
+
+        return String(localized: "Inline preview is unavailable for this file.")
     }
 
     private func previewContainerBackground(useSectionBackground: Bool) -> some View {
@@ -1125,13 +1190,13 @@ private struct RemoteFileVideoPreview: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(backgroundColor)
             )
-            .task(id: url) {
-                player?.pause()
-                player = AVPlayer(url: url)
-            }
-            .onDisappear {
-                player?.pause()
-            }
+        .task(id: url) {
+            player?.pause()
+            player = AVPlayer(url: url)
+        }
+        .onDisappear {
+            player?.pause()
+        }
     }
 }
 
@@ -1235,13 +1300,13 @@ private struct RemoteFileExpandedMediaPreview: View {
     private var videoContent: some View {
         VideoPlayer(player: player)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .task(id: item.url) {
-                player?.pause()
-                player = AVPlayer(url: item.url)
-            }
-            .onDisappear {
-                player?.pause()
-            }
+        .task(id: item.url) {
+            player?.pause()
+            player = AVPlayer(url: item.url)
+        }
+        .onDisappear {
+            player?.pause()
+        }
     }
 }
 
@@ -1778,6 +1843,7 @@ struct RemoteFilePermissionEditorSheet: View {
     @Binding var draft: RemoteFilePermissionDraft
     let originalAccessBits: UInt32
     let preservedBits: UInt32
+    let errorMessage: String?
     let isSubmitting: Bool
     let onCancel: () -> Void
     let onApply: () -> Void
@@ -1790,6 +1856,7 @@ struct RemoteFilePermissionEditorSheet: View {
         #if os(iOS)
         NavigationStack {
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .navigationTitle(String(localized: "Permissions"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -1830,6 +1897,7 @@ struct RemoteFilePermissionEditorSheet: View {
             }
             .padding(20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         #endif
     }
 
@@ -1844,11 +1912,16 @@ struct RemoteFilePermissionEditorSheet: View {
                     permissionGroup(for: audience)
                 }
 
+                if let errorMessage, !errorMessage.isEmpty {
+                    inlineErrorMessage(errorMessage)
+                }
+
                 footer
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay {
             if isSubmitting {
                 ZStack {
@@ -1923,8 +1996,10 @@ struct RemoteFilePermissionEditorSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .toggleStyle(.switch)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
 
@@ -1953,6 +2028,23 @@ struct RemoteFilePermissionEditorSheet: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func inlineErrorMessage(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.orange.opacity(0.12))
+        )
     }
 
     private func permissionBinding(
@@ -2202,6 +2294,23 @@ struct RemoteFileTransferStatusView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
+            if status.phase == .succeeded, let fileName = status.fileName, !fileName.isEmpty {
+                Text(fileName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            if status.phase == .succeeded, let filePath = status.filePath, !filePath.isEmpty {
+                Text(filePath)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+
             if let completedUnitCount = status.completedUnitCount,
                let totalUnitCount = status.totalUnitCount,
                totalUnitCount > 0 {
@@ -2219,9 +2328,21 @@ struct RemoteFileTransferStatusView: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
             }
+
+            #if os(macOS)
+            if status.phase == .succeeded, let fileURL = status.fileURL {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                } label: {
+                    Label(String(localized: "Show in Finder"), systemImage: "finder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            #endif
         }
         .padding(14)
-        .frame(width: 300, alignment: .leading)
+        .frame(width: 340, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
