@@ -23,14 +23,6 @@ struct WelcomeView: View {
 private struct iOSWelcomeContent: View {
     @Binding var hasSeenWelcome: Bool
 
-    private let features: [(icon: String, title: String, description: String, color: Color)] = [
-        ("terminal.fill", String(localized: "SSH Terminal"), String(localized: "Connect to servers with GPU-accelerated terminal emulation."), .blue),
-        ("icloud.fill", String(localized: "iCloud Sync"), String(localized: "Servers and credentials sync across all your devices."), .cyan),
-        ("clock.arrow.circlepath", String(localized: "Session Persistence"), String(localized: "Keep sessions alive with tmux, even after disconnects."), .teal),
-        ("key.fill", String(localized: "Secure Storage"), String(localized: "Passwords and SSH keys protected by Keychain."), .green),
-        ("waveform", String(localized: "Voice Commands"), String(localized: "Speak commands with on-device speech recognition."), .orange)
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -59,7 +51,7 @@ private struct iOSWelcomeContent: View {
 
                     // Features
                     VStack(alignment: .leading, spacing: 24) {
-                        ForEach(features, id: \.title) { feature in
+                        ForEach(WelcomeFeatureCatalog.features) { feature in
                             HStack(alignment: .top, spacing: 16) {
                                 Image(systemName: feature.icon)
                                     .font(.system(size: 22, weight: .medium))
@@ -118,14 +110,6 @@ private struct iOSWelcomeContent: View {
 private struct macOSWelcomeContent: View {
     @Binding var hasSeenWelcome: Bool
 
-    private let features: [(icon: String, title: String, description: String, color: Color)] = [
-        ("terminal.fill", String(localized: "SSH Terminal"), String(localized: "Connect to servers with GPU-accelerated terminal emulation."), .blue),
-        ("icloud.fill", String(localized: "iCloud Sync"), String(localized: "Servers and credentials sync across all your devices."), .cyan),
-        ("clock.arrow.circlepath", String(localized: "Session Persistence"), String(localized: "Keep sessions alive with tmux, even after disconnects."), .teal),
-        ("key.fill", String(localized: "Secure Storage"), String(localized: "Passwords and SSH keys protected by Keychain."), .green),
-        ("waveform", String(localized: "Voice Commands"), String(localized: "Speak commands with on-device speech recognition."), .orange)
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
@@ -158,7 +142,7 @@ private struct macOSWelcomeContent: View {
 
             // Features
             VStack(alignment: .leading, spacing: 20) {
-                ForEach(features, id: \.title) { feature in
+                ForEach(WelcomeFeatureCatalog.features) { feature in
                     HStack(alignment: .top, spacing: 14) {
                         Image(systemName: feature.icon)
                             .font(.system(size: 18, weight: .medium))
