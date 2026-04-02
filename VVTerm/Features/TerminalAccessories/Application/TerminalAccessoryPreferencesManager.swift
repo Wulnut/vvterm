@@ -398,9 +398,10 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            let resolvedProfile = notification.userInfo?["profile"] as? TerminalAccessoryProfile
             Task { @MainActor [weak self] in
                 guard let self,
-                      let resolvedProfile = notification.userInfo?["profile"] as? TerminalAccessoryProfile else {
+                      let resolvedProfile else {
                     return
                 }
 

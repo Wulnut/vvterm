@@ -29,7 +29,7 @@ struct RemoteShellProfile: Hashable, Sendable {
         }
     }
 
-    func launchPlan(startupCommand: String?, bundle: Bundle = .main) -> RemoteShellLaunchPlan {
+    nonisolated func launchPlan(startupCommand: String?, bundle: Bundle = .main) -> RemoteShellLaunchPlan {
         let trimmed = startupCommand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         switch family {
         case .posix:
@@ -62,7 +62,7 @@ struct RemoteShellProfile: Hashable, Sendable {
         }
     }
 
-    func directoryChangeCommand(for path: String) -> String {
+    nonisolated func directoryChangeCommand(for path: String) -> String {
         switch family {
         case .posix:
             return RemoteTerminalBootstrap.posixDirectoryChangeCommand(for: path)
