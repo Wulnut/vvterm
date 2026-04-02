@@ -26,6 +26,7 @@ struct VVTermApp: App {
     @StateObject private var ghosttyApp = Ghostty.App()
     #endif
     @StateObject private var appLockManager = AppLockManager.shared
+    @StateObject private var storeManager = StoreManager.shared
     @StateObject private var remoteFileBrowserStore = VVTermApp.makeRemoteFileBrowserStore()
     @StateObject private var terminalThemeManager = TerminalThemeManager.shared
     @StateObject private var terminalAccessoryPreferencesManager = TerminalAccessoryPreferencesManager.shared
@@ -103,6 +104,7 @@ struct VVTermApp: App {
                 .environment(\.locale, appLocale)
                 .environment(\.privacyModeEnabled, privacyModeEnabled)
                 .environmentObject(appLockManager)
+                .environmentObject(storeManager)
                 .onAppear {
                     AppLanguage.applySelection(appLanguage)
                 }

@@ -185,7 +185,7 @@ struct ProBadge: View {
 // MARK: - Pro Gate View
 
 struct ProGateView<Content: View, LockedContent: View>: View {
-    @ObservedObject private var storeManager = StoreManager.shared
+    @EnvironmentObject private var storeManager: StoreManager
     let content: () -> Content
     let lockedContent: () -> LockedContent
 

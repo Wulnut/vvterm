@@ -5,7 +5,7 @@ import StoreKit
 
 struct ProUpgradeSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var storeManager = StoreManager.shared
+    @EnvironmentObject private var storeManager: StoreManager
 
     @State private var selectedProduct: Product?
     @State private var showSuccess = false
