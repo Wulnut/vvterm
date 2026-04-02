@@ -8,11 +8,11 @@ import UIKit
 #endif
 
 struct RemoteFileBrowserScreen: View {
+    @ObservedObject var browser: RemoteFileBrowserStore
     let server: Server
     let initialPath: String?
 
     @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var browser: RemoteFileBrowserStore
     @AppStorage(CloudKitSyncConstants.terminalThemeNameKey) var terminalThemeName = "Aizen Dark"
     @AppStorage(CloudKitSyncConstants.terminalThemeNameLightKey) var terminalThemeNameLight = "Aizen Light"
     @AppStorage(CloudKitSyncConstants.terminalUsePerAppearanceThemeKey) var usePerAppearanceTheme = true

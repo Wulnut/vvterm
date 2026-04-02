@@ -68,8 +68,7 @@ struct VVTermApp: App {
             AppLockContainer {
                 Group {
                     #if os(iOS)
-                    iOSContentView()
-                        .environmentObject(remoteFileBrowserStore)
+                    iOSContentView(fileBrowser: remoteFileBrowserStore)
                         .environmentObject(ghosttyApp)
                         .environmentObject(terminalThemeManager)
                         .environmentObject(terminalAccessoryPreferencesManager)
@@ -84,8 +83,7 @@ struct VVTermApp: App {
                             WelcomeView(hasSeenWelcome: $hasSeenWelcome)
                         }
                     #else
-                    ContentView()
-                        .environmentObject(remoteFileBrowserStore)
+                    ContentView(fileBrowser: remoteFileBrowserStore)
                         .environmentObject(ghosttyApp)
                         .environmentObject(terminalThemeManager)
                         .environmentObject(terminalAccessoryPreferencesManager)

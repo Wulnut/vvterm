@@ -9,6 +9,7 @@ import AppKit
 #endif
 
 struct ContentView: View {
+    let fileBrowser: RemoteFileBrowserStore
     @StateObject private var serverManager = ServerManager.shared
     @StateObject private var tabManager = TerminalTabManager.shared
     @StateObject private var storeManager = StoreManager.shared
@@ -76,6 +77,7 @@ struct ContentView: View {
                 ConnectionTerminalContainer(
                     tabManager: tabManager,
                     serverManager: serverManager,
+                    fileBrowser: fileBrowser,
                     server: server,
                     isZenModeEnabled: $isZenModeEnabled,
                     isSidebarVisible: isSidebarVisible,
@@ -228,7 +230,7 @@ struct ContentView: View {
 // MARK: - Preview
 
 #Preview {
-    ContentView()
+    ContentView(fileBrowser: RemoteFileBrowserStore())
 }
 
 #if os(macOS)

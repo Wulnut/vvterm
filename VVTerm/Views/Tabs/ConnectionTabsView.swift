@@ -15,13 +15,13 @@ import UIKit
 struct ConnectionTerminalContainer: View {
     @ObservedObject var tabManager: TerminalTabManager
     let serverManager: ServerManager
+    let fileBrowser: RemoteFileBrowserStore
     let server: Server
     @Binding var isZenModeEnabled: Bool
     let isSidebarVisible: Bool
     let onToggleSidebar: () -> Void
 
     @EnvironmentObject var ghosttyApp: Ghostty.App
-    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
 
@@ -206,6 +206,7 @@ struct ConnectionTerminalContainer: View {
 
             if selectedView == "files" {
                 RemoteFileBrowserScreen(
+                    browser: fileBrowser,
                     server: server,
                     initialPath: selectedTab.flatMap { tabManager.workingDirectory(for: $0.focusedPaneId) }
                 )

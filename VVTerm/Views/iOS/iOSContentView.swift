@@ -10,6 +10,7 @@ import UIKit
 
 #if os(iOS)
 struct iOSContentView: View {
+    let fileBrowser: RemoteFileBrowserStore
     @StateObject private var serverManager = ServerManager.shared
     @StateObject private var sessionManager = ConnectionSessionManager.shared
     @StateObject private var viewTabConfig = ViewTabConfigurationManager.shared
@@ -38,6 +39,7 @@ struct iOSContentView: View {
             iOSServerListView(
                 serverManager: serverManager,
                 sessionManager: sessionManager,
+                fileBrowser: fileBrowser,
                 selectedWorkspace: $selectedWorkspace,
                 selectedEnvironment: $selectedEnvironment,
                 showingTerminal: $showingTerminal,
@@ -88,6 +90,7 @@ struct iOSContentView: View {
                 iOSTerminalView(
                     sessionManager: sessionManager,
                     serverManager: serverManager,
+                    fileBrowser: fileBrowser,
                     connectingServer: connectingServer,
                     isConnecting: isConnecting,
                     onBack: { showingTerminal = false }
@@ -140,6 +143,7 @@ struct iOSContentView: View {
 struct iOSServerListView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var sessionManager: ConnectionSessionManager
+    let fileBrowser: RemoteFileBrowserStore
     @Binding var selectedWorkspace: Workspace?
     @Binding var selectedEnvironment: ServerEnvironment?
     @Binding var showingTerminal: Bool
@@ -147,8 +151,6 @@ struct iOSServerListView: View {
 
     @ObservedObject private var storeManager = StoreManager.shared
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
-    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
-
     @State private var showingAddServer = false
     @State private var showingLocalDiscovery = false
     @State private var showingAddWorkspace = false
@@ -707,13 +709,13 @@ struct iOSEnvironmentFilterMenu: View {
 struct iOSTerminalView: View {
     @ObservedObject var sessionManager: ConnectionSessionManager
     @ObservedObject var serverManager: ServerManager
+    let fileBrowser: RemoteFileBrowserStore
     let connectingServer: Server?
     let isConnecting: Bool
     let onBack: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
-    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
 
     /// Delayed flag to allow tab animation to complete before creating terminal
@@ -1059,7 +1061,7 @@ struct iOSTerminalView: View {
                 openNewTab()
             }
         } else if selectedView == "files", let server = selectedServer {
-            RemoteFileBrowserScreen(server: server, initialPath: nil)
+            RemoteFileBrowserScreen(browser: fileBrowser, server: server, initialPath: nil)
         } else if let server = selectedServer {
             ServerStatsView(
                 server: server,
@@ -1085,6 +1087,7 @@ struct iOSTerminalView: View {
             if selectedView == "files" {
                 if let server = selectedServer {
                     RemoteFileBrowserScreen(
+                        browser: fileBrowser,
                         server: server,
                         initialPath: selectedSession?.workingDirectory
                     )
@@ -1225,6 +1228,7 @@ struct iOSTerminalView: View {
             if effectiveViewSelection == "files" {
                 if let server {
                     RemoteFileBrowserScreen(
+                        browser: fileBrowser,
                         server: server,
                         initialPath: session.workingDirectory
                     )
