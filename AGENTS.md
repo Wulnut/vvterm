@@ -12,27 +12,71 @@ Cross-platform (iOS/macOS) SSH terminal app with iCloud sync and Keychain creden
 
 ```
 VVTerm/
-├── Models/
-│   ├── Server.swift              # Server entity (CloudKit synced)
-│   ├── Workspace.swift           # Workspace grouping
-│   └── ServerEnvironment.swift   # Prod/Staging/Dev environments
+├── App/
+├── Core/                         # Shared infrastructure and platform glue
+├── Features/                     # Feature-first architecture target
+│   └── RemoteFiles/              # First feature being migrated
+│       ├── Domain/
+│       ├── Application/
+│       ├── Infrastructure/
+│       └── UI/
+├── GhosttyTerminal/              # libghostty terminal emulation
+├── Models/                       # Legacy app-wide buckets, migrated over time
 ├── Managers/
-│   ├── ServerManager.swift       # Server/Workspace CRUD + sync
-│   └── ConnectionSessionManager.swift  # Tab/connection lifecycle
 ├── Services/
-│   ├── SSH/SSHClient.swift       # libssh2 wrapper
-│   ├── CloudKit/CloudKitManager.swift  # iCloud sync
-│   ├── Keychain/KeychainManager.swift  # Credential storage
-│   ├── Store/StoreManager.swift  # StoreKit 2 (Pro tier)
-│   └── Audio/                    # Voice-to-command (MLX Whisper/Parakeet)
-├── Views/
-│   ├── Sidebar/ServerSidebarView.swift
-│   ├── Terminal/TerminalContainerView.swift
-│   ├── Tabs/ConnectionTabsView.swift
-│   ├── Settings/SettingsView.swift
-│   └── Store/ProUpgradeSheet.swift
-└── GhosttyTerminal/              # libghostty terminal emulation
+└── Views/
 ```
+
+## Architecture Direction
+
+VVTerm is moving from app-wide technical buckets toward **feature-first architecture**.
+
+Current migration status:
+- `Features/RemoteFiles` is the first direct-cutover feature migration.
+- Other areas may still live in legacy top-level buckets such as `Models`, `Managers`, `Services`, and `Views`.
+- New work inside the Files/SFTP feature should stay inside `Features/RemoteFiles` and should not add new Files code back into the legacy structure.
+
+Feature-first target shape:
+- `Domain`: pure feature types and rules
+- `Application`: feature state, orchestration, coordinators, use-case style logic
+- `Infrastructure`: transport, persistence, adapters, external integrations
+- `UI`: SwiftUI/AppKit/UIKit presentation only
+
+For Files/SFTP specifically:
+- no non-view logic under `UI`
+- no feature policy inside `SSHClient` beyond low-level transport/session behavior
+- use explicit dependency injection at the feature boundary
+- do direct cutovers, not compatibility shims
+
+## Refactoring Rules
+
+When doing architectural refactors:
+- prioritize structural splits and ownership cleanup over behavior changes
+- preserve existing UI, UX, and visual behavior unless the user explicitly asks for a change
+- do not bundle redesigns or new features into a refactor
+- keep platform parity intact unless a platform-specific bug is being fixed
+- if a behavior change is necessary for correctness or safety, keep it minimal and isolated
+
+Safe refactor expectation:
+- same screens
+- same entry points
+- same interactions
+- same user-facing flows
+- smaller files, clearer boundaries, better ownership
+
+## Commits
+
+- Use **atomic commits**.
+- Each commit must represent one coherent change that can be reviewed and reverted independently.
+- Do not mix architecture docs, code moves, behavioral fixes, and unrelated cleanup in one commit unless they are inseparable.
+- Prefer a sequence such as:
+  - architecture/spec update
+  - domain extraction
+  - application/store extraction
+  - infrastructure extraction
+  - UI split
+  - targeted safety fix
+- Before committing, verify the diff matches a single intent.
 
 ## Key Components
 
