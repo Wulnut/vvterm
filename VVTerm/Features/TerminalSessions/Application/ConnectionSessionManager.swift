@@ -108,6 +108,28 @@ final class ConnectionSessionManager: ObservableObject {
         sessions.firstIndex { $0.id == sessionId }
     }
 
+    private func firstSession(for serverId: UUID) -> ConnectionSession? {
+        sessions.first { $0.serverId == serverId }
+    }
+
+    private func firstConnectedSession(for serverId: UUID) -> ConnectionSession? {
+        sessions.first { $0.serverId == serverId && $0.connectionState.isConnected }
+    }
+
+    private func selectedSession(for serverId: UUID) -> ConnectionSession? {
+        if let selectedSessionId = selectedSessionByServer[serverId] {
+            return sessionWithID(selectedSessionId)
+        }
+
+        guard let selectedSessionId,
+              let session = sessionWithID(selectedSessionId),
+              session.serverId == serverId else {
+            return nil
+        }
+
+        return session
+    }
+
     private func storedWorkingDirectory(for sessionId: UUID) -> String? {
         sessionWithID(sessionId)?.workingDirectory
     }
@@ -162,7 +184,7 @@ final class ConnectionSessionManager: ObservableObject {
         }
 
         // Check if already have a session for this server (unless forcing new)
-        if !forceNew, let existingSession = sessions.first(where: { $0.serverId == server.id }) {
+        if !forceNew, let existingSession = firstSession(for: server.id) {
             selectedSessionId = existingSession.id
             return existingSession
         }
@@ -172,10 +194,10 @@ final class ConnectionSessionManager: ObservableObject {
         }
 
         let preferredSessionId = selectedSessionByServer[server.id] ?? selectedSessionId
-        let fallbackSessionId = sessions.first(where: { $0.serverId == server.id })?.id
+        let fallbackSessionId = firstSession(for: server.id)?.id
         let sourceSessionId = preferredSessionId ?? fallbackSessionId
         var sourceWorkingDirectory = sourceSessionId.flatMap(sessionWithID)?.workingDirectory
-            ?? sessions.first(where: { $0.serverId == server.id })?.workingDirectory
+            ?? firstSession(for: server.id)?.workingDirectory
         if tmuxResolver.isTmuxEnabled(for: server.id),
            let sourceSessionId,
            let sourceSession = sessionWithID(sourceSessionId),
@@ -627,7 +649,7 @@ final class ConnectionSessionManager: ObservableObject {
             return client
         }
 
-        if let anySession = sessions.first(where: { $0.serverId == serverId }),
+        if let anySession = firstSession(for: serverId),
            let client = shellRegistry.client(for: anySession.id) {
             return client
         }
@@ -659,21 +681,15 @@ final class ConnectionSessionManager: ObservableObject {
     }
 
     private func selectedTransport(for serverId: UUID) -> ShellTransport {
-        if let selectedSessionId = selectedSessionByServer[serverId],
-           let session = sessions.first(where: { $0.id == selectedSessionId }) {
+        if let session = selectedSession(for: serverId) {
             return session.activeTransport
         }
 
-        if let selectedSessionId,
-           let session = sessions.first(where: { $0.id == selectedSessionId && $0.serverId == serverId }) {
-            return session.activeTransport
-        }
-
-        if let connected = sessions.first(where: { $0.serverId == serverId && $0.connectionState.isConnected }) {
+        if let connected = firstConnectedSession(for: serverId) {
             return connected.activeTransport
         }
 
-        return sessions.first(where: { $0.serverId == serverId })?.activeTransport ?? .ssh
+        return firstSession(for: serverId)?.activeTransport ?? .ssh
     }
 
     // MARK: - Terminal Registration (with LRU caching)
