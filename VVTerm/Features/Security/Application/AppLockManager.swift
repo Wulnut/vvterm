@@ -51,14 +51,11 @@ final class AppLockManager: ObservableObject {
     }
 
     private let defaults: UserDefaults
-    private let authService: BiometricAuthService
+    private let authService: any BiometricAuthServing
     private var lastAppUnlockAt: Date?
     private var unlockedServers: [UUID: Date] = [:]
 
-    private init(
-        defaults: UserDefaults = .standard,
-        authService: BiometricAuthService = .shared
-    ) {
+    init(defaults: UserDefaults, authService: any BiometricAuthServing) {
         self.defaults = defaults
         self.authService = authService
 
@@ -70,6 +67,10 @@ final class AppLockManager: ObservableObject {
         self.isAppLocked = fullLockEnabled
 
         refreshBiometryAvailability()
+    }
+
+    convenience init() {
+        self.init(defaults: .standard, authService: BiometricAuthService.shared)
     }
 
     func refreshBiometryAvailability() {
@@ -204,7 +205,7 @@ final class AppLockManager: ObservableObject {
         defer { isAuthenticating = false }
 
         do {
-            try await authService.authenticate(localizedReason: reason)
+            try await authService.authenticate(localizedReason: reason, allowPasscodeFallback: true)
             return true
         } catch let error as BiometricAuthError {
             if !error.isCancellation {
