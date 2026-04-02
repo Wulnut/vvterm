@@ -15,6 +15,7 @@ VVTerm/
 ├── App/
 ├── Core/                         # Shared infrastructure and platform glue
 │   ├── Network/
+│   ├── UI/
 │   ├── SSH/
 │   ├── Security/
 │   └── Sync/
@@ -91,6 +92,7 @@ Current migration status:
 - `Core/Sync` is extracted for CloudKit sync infrastructure.
 - `Core/Security` is extracted for keychain infrastructure.
 - `Core/Network` is extracted for shared connectivity monitoring and Cloudflare transport support.
+- `Core/UI` is extracted for shared view primitives reused across features.
 - `Core/SSH` is extracted for shared SSH bootstrap, known-hosts, key generation, environment detection, and rich-paste support.
 - `Features/ConnectionViews` is migrated for connection view tab configuration types and state.
 - `Features/RemoteFiles` is fully migrated and is the reference pattern for larger features.
