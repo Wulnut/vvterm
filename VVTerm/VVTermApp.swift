@@ -103,8 +103,6 @@ struct VVTermApp: App {
                 }
                 .environment(\.locale, appLocale)
                 .environment(\.privacyModeEnabled, privacyModeEnabled)
-                .environmentObject(appLockManager)
-                .environmentObject(storeManager)
                 .onAppear {
                     AppLanguage.applySelection(appLanguage)
                 }
@@ -112,6 +110,8 @@ struct VVTermApp: App {
                     AppLanguage.applySelection(newValue)
                 }
             }
+            .environmentObject(appLockManager)
+            .environmentObject(storeManager)
         }
         #if os(macOS)
         .windowToolbarStyle(.unified)
