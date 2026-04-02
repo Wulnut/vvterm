@@ -120,11 +120,9 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
             deletedAt: nil
         )
 
-        var nextProfile = profile
-        nextProfile.customActions.insert(action, at: 0)
-        nextProfile.updatedAt = now
-        nextProfile.lastWriterDeviceId = DeviceIdentity.id
-        applyProfile(nextProfile, scheduleCloudSync: true)
+        applyProfileMutation(at: now) { nextProfile, _ in
+            nextProfile.customActions.insert(action, at: 0)
+        }
         return action
     }
 
@@ -152,20 +150,19 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
         }
 
         let now = Date()
-        var nextProfile = profile
-        nextProfile.customActions[index].title = String(trimmedTitle.prefix(TerminalAccessoryProfile.maxCustomActionTitleLength))
-        nextProfile.customActions[index].kind = kind
-        nextProfile.customActions[index].commandContent = kind == .command
-            ? String(commandContent.prefix(TerminalAccessoryProfile.maxCommandContentLength))
-            : ""
-        nextProfile.customActions[index].commandSendMode = commandSendMode
-        nextProfile.customActions[index].shortcutKey = shortcutKey
-        nextProfile.customActions[index].shortcutModifiers = shortcutModifiers
-        nextProfile.customActions[index].updatedAt = now
-        nextProfile.customActions[index].deletedAt = nil
-        nextProfile.updatedAt = now
-        nextProfile.lastWriterDeviceId = DeviceIdentity.id
-        applyProfile(nextProfile, scheduleCloudSync: true)
+        applyProfileMutation(at: now) { nextProfile, mutationDate in
+            nextProfile.customActions[index].title = String(trimmedTitle.prefix(TerminalAccessoryProfile.maxCustomActionTitleLength))
+            nextProfile.customActions[index].kind = kind
+            nextProfile.customActions[index].commandContent = kind == .command
+                ? String(commandContent.prefix(TerminalAccessoryProfile.maxCommandContentLength))
+                : ""
+            nextProfile.customActions[index].commandSendMode = commandSendMode
+            nextProfile.customActions[index].shortcutKey = shortcutKey
+            nextProfile.customActions[index].shortcutModifiers = shortcutModifiers
+            nextProfile.customActions[index].updatedAt = mutationDate
+            nextProfile.customActions[index].deletedAt = nil
+        }
+        let nextProfile = profile
         return nextProfile.customActions[index]
     }
 
@@ -174,15 +171,12 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
             return
         }
 
-        let now = Date()
-        var nextProfile = profile
-        nextProfile.customActions[index].title = ""
-        nextProfile.customActions[index].commandContent = ""
-        nextProfile.customActions[index].deletedAt = now
-        nextProfile.customActions[index].updatedAt = now
-        nextProfile.updatedAt = now
-        nextProfile.lastWriterDeviceId = DeviceIdentity.id
-        applyProfile(nextProfile, scheduleCloudSync: true)
+        applyProfileMutation { nextProfile, now in
+            nextProfile.customActions[index].title = ""
+            nextProfile.customActions[index].commandContent = ""
+            nextProfile.customActions[index].deletedAt = now
+            nextProfile.customActions[index].updatedAt = now
+        }
     }
 
     func moveActiveItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
@@ -209,13 +203,9 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
     }
 
     func resetToDefaultLayout() {
-        let now = Date()
-        var nextProfile = profile
-        nextProfile.layout.activeItems = TerminalAccessoryProfile.defaultActiveItems
-        nextProfile.layout.updatedAt = now
-        nextProfile.updatedAt = now
-        nextProfile.lastWriterDeviceId = DeviceIdentity.id
-        applyProfile(nextProfile, scheduleCloudSync: true)
+        updateLayout { layout in
+            layout.activeItems = TerminalAccessoryProfile.defaultActiveItems
+        }
     }
 
     func refreshFromCloud() async {
@@ -223,13 +213,9 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
     }
 
     private func updateLayoutItems(_ items: [TerminalAccessoryItemRef]) {
-        let now = Date()
-        var nextProfile = profile
-        nextProfile.layout.activeItems = items
-        nextProfile.layout.updatedAt = now
-        nextProfile.updatedAt = now
-        nextProfile.lastWriterDeviceId = DeviceIdentity.id
-        applyProfile(nextProfile, scheduleCloudSync: true)
+        updateLayout { layout in
+            layout.activeItems = items
+        }
     }
 
     private func moveItems<T>(_ items: [T], fromOffsets offsets: IndexSet, toOffset destination: Int) -> [T] {
@@ -254,6 +240,25 @@ final class TerminalAccessoryPreferencesManager: ObservableObject {
             result.remove(at: index)
         }
         return result
+    }
+
+    private func updateLayout(_ update: (inout TerminalAccessoryLayout) -> Void) {
+        applyProfileMutation { nextProfile, now in
+            update(&nextProfile.layout)
+            nextProfile.layout.updatedAt = now
+        }
+    }
+
+    private func applyProfileMutation(
+        at mutationDate: Date = Date(),
+        scheduleCloudSync: Bool = true,
+        _ mutate: (inout TerminalAccessoryProfile, Date) -> Void
+    ) {
+        var nextProfile = profile
+        mutate(&nextProfile, mutationDate)
+        nextProfile.updatedAt = mutationDate
+        nextProfile.lastWriterDeviceId = DeviceIdentity.id
+        applyProfile(nextProfile, scheduleCloudSync: scheduleCloudSync)
     }
 
     private func applyProfile(_ nextProfile: TerminalAccessoryProfile, scheduleCloudSync: Bool) {
