@@ -14,7 +14,13 @@ Cross-platform (iOS/macOS) SSH terminal app with iCloud sync and Keychain creden
 VVTerm/
 ├── App/
 ├── Core/                         # Shared infrastructure and platform glue
+│   ├── Network/
+│   ├── Security/
+│   └── Sync/
 ├── Features/                     # Feature-first architecture target
+│   ├── ConnectionViews/
+│   │   ├── Domain/
+│   │   └── Application/
 │   ├── LocalDiscovery/
 │   │   ├── Domain/
 │   │   ├── Application/
@@ -47,10 +53,13 @@ VVTerm/
 │   │   ├── Domain/
 │   │   ├── Application/
 │   │   └── UI/
-│   └── Stats/
+│   ├── Stats/
+│   │   ├── Domain/
+│   │   ├── Application/
+│   │   ├── Infrastructure/
+│   │   └── UI/
+│   └── Welcome/
 │       ├── Domain/
-│       ├── Application/
-│       ├── Infrastructure/
 │       └── UI/
 ├── GhosttyTerminal/              # libghostty terminal emulation
 ├── Models/                       # Legacy app-wide buckets, migrated over time
@@ -64,6 +73,10 @@ VVTerm/
 VVTerm is moving from app-wide technical buckets toward **feature-first architecture**.
 
 Current migration status:
+- `Core/Sync` is extracted for CloudKit sync infrastructure.
+- `Core/Security` is extracted for keychain infrastructure.
+- `Core/Network` is extracted for shared connectivity monitoring.
+- `Features/ConnectionViews` is migrated for connection view tab configuration types and state.
 - `Features/RemoteFiles` is fully migrated and is the reference pattern for larger features.
 - `Features/LocalDiscovery` is migrated for discovery-specific code and UI.
 - `Features/Servers` is migrated for server/workspace domain models, server management, and server/workspace UI flows.
@@ -72,6 +85,7 @@ Current migration status:
 - `Features/Store` is migrated for Pro entitlements, purchases, and upgrade surfaces.
 - `Features/TerminalThemes` is migrated for theme models, validation, storage paths, parsing, and theme management.
 - `Features/TerminalAccessories` is migrated for keyboard accessory models, preferences, settings UI, and accessory validation flows.
+- `Features/Welcome` is migrated for welcome/onboarding copy and presentation.
 - Other areas may still live in legacy top-level buckets such as `Models`, `Managers`, `Services`, and `Views`.
 - New work inside migrated features must stay inside their `Features/<FeatureName>` subtree and should not add code for those features back into the legacy structure.
 
