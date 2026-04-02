@@ -21,9 +21,9 @@ struct ConnectionTerminalContainer: View {
     let onToggleSidebar: () -> Void
 
     @EnvironmentObject var ghosttyApp: Ghostty.App
+    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
-    @ObservedObject private var fileBrowser = RemoteFileBrowserManager.shared
 
     /// Theme name from settings
     @AppStorage(CloudKitSyncConstants.terminalThemeNameKey) private var terminalThemeName = "Aizen Dark"
@@ -593,7 +593,7 @@ struct ConnectionTerminalContainer: View {
 
     private func disconnectFromServer() {
         tabManager.closeAllTabs(for: server.id)
-        RemoteFileBrowserManager.shared.disconnect(serverId: server.id)
+        fileBrowser.disconnect(serverId: server.id)
         tabManager.connectedServerIds.remove(server.id)
     }
 

@@ -12,7 +12,7 @@ struct RemoteFileBrowserView: View {
     let initialPath: String?
 
     @Environment(\.colorScheme) var colorScheme
-    @ObservedObject var browser = RemoteFileBrowserManager.shared
+    @EnvironmentObject var browser: RemoteFileBrowserStore
     @AppStorage(CloudKitSyncConstants.terminalThemeNameKey) var terminalThemeName = "Aizen Dark"
     @AppStorage(CloudKitSyncConstants.terminalThemeNameLightKey) var terminalThemeNameLight = "Aizen Light"
     @AppStorage(CloudKitSyncConstants.terminalUsePerAppearanceThemeKey) var usePerAppearanceTheme = true
@@ -141,12 +141,6 @@ struct RemoteFileBrowserView: View {
 
         return colorScheme == .dark ? .black : .white
     }
-
-    init(server: Server, initialPath: String?) {
-        self.server = server
-        self.initialPath = initialPath
-    }
-
     var body: some View {
         ZStack {
             Group {
@@ -522,7 +516,7 @@ struct RemoteFileBrowserView: View {
         successFileURL: URL? = nil,
         successFileName: String? = nil,
         successFilePath: String? = nil,
-        operation: @escaping (@escaping @MainActor (RemoteFileBrowserManager.TransferProgress) -> Void) async throws -> Void
+        operation: @escaping (@escaping @MainActor (RemoteFileBrowserStore.TransferProgress) -> Void) async throws -> Void
     ) {
         let transferID = UUID()
 
@@ -999,7 +993,7 @@ struct RemoteFileBrowserView: View {
                     serverId: server.id
                 )
                 let plans = candidates.map { candidate in
-                    RemoteFileBrowserManager.LocalUploadPlanItem(
+                    RemoteFileBrowserStore.LocalUploadPlanItem(
                         sourceURL: candidate.sourceURL,
                         remoteName: candidate.suggestedName ?? candidate.originalName
                     )
@@ -1280,7 +1274,7 @@ struct RemoteFileBrowserView: View {
     func moveDroppedRemoteItems(
         _ payloads: [RemoteFileDragPayload],
         to destinationDirectoryPath: String,
-        onProgress: (@MainActor (RemoteFileBrowserManager.TransferProgress) -> Void)? = nil
+        onProgress: (@MainActor (RemoteFileBrowserStore.TransferProgress) -> Void)? = nil
     ) async throws {
         let uniqueEntries = payloads
             .flatMap(\.entries)
@@ -1311,7 +1305,7 @@ struct RemoteFileBrowserView: View {
                 serverId: server.id
             )
             onProgress?(
-                RemoteFileBrowserManager.TransferProgress(
+                RemoteFileBrowserStore.TransferProgress(
                     completedUnitCount: index + 1,
                     totalUnitCount: totalUnitCount,
                     currentItemName: sourceEntry.name
@@ -1323,7 +1317,7 @@ struct RemoteFileBrowserView: View {
     func transferDroppedRemoteItems(
         _ payloads: [RemoteFileDragPayload],
         to destinationDirectoryPath: String,
-        onProgress: (@MainActor (RemoteFileBrowserManager.TransferProgress) -> Void)? = nil
+        onProgress: (@MainActor (RemoteFileBrowserStore.TransferProgress) -> Void)? = nil
     ) async throws {
         let sourceServerIDs = Set(payloads.map(\.serverId))
         guard sourceServerIDs.count == 1, let sourceServerId = sourceServerIDs.first else {

@@ -147,6 +147,7 @@ struct iOSServerListView: View {
 
     @ObservedObject private var storeManager = StoreManager.shared
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
+    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
 
     @State private var showingAddServer = false
     @State private var showingLocalDiscovery = false
@@ -280,6 +281,7 @@ struct iOSServerListView: View {
                                 }
                             },
                             onDisconnect: {
+                                fileBrowser.disconnect(serverId: connection.id)
                                 sessionManager.disconnectServer(connection.id)
                             }
                         )
@@ -711,6 +713,7 @@ struct iOSTerminalView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var fileBrowser: RemoteFileBrowserStore
     @ObservedObject private var viewTabConfig = ViewTabConfigurationManager.shared
 
     /// Delayed flag to allow tab animation to complete before creating terminal
@@ -1297,6 +1300,7 @@ struct iOSTerminalView: View {
             onBack()
             return
         }
+        fileBrowser.disconnect(serverId: serverId)
         sessionManager.disconnectServer(serverId)
         onBack()
     }

@@ -590,7 +590,6 @@ final class ConnectionSessionManager: ObservableObject {
         for session in sessionsToClose {
             closeSession(session)
         }
-        RemoteFileBrowserManager.shared.disconnect(serverId: serverId)
         connectedServerIds.remove(serverId)
         if connectedServerIds.isEmpty {
             connectedServerId = nil

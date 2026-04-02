@@ -25,6 +25,7 @@ struct VVTermApp: App {
     #else
     @StateObject private var ghosttyApp = Ghostty.App()
     #endif
+    @StateObject private var remoteFileBrowserStore = RemoteFileBrowserStore()
     @StateObject private var terminalThemeManager = TerminalThemeManager.shared
     @StateObject private var terminalAccessoryPreferencesManager = TerminalAccessoryPreferencesManager.shared
 
@@ -68,6 +69,7 @@ struct VVTermApp: App {
                 Group {
                     #if os(iOS)
                     iOSContentView()
+                        .environmentObject(remoteFileBrowserStore)
                         .environmentObject(ghosttyApp)
                         .environmentObject(terminalThemeManager)
                         .environmentObject(terminalAccessoryPreferencesManager)
@@ -83,6 +85,7 @@ struct VVTermApp: App {
                         }
                     #else
                     ContentView()
+                        .environmentObject(remoteFileBrowserStore)
                         .environmentObject(ghosttyApp)
                         .environmentObject(terminalThemeManager)
                         .environmentObject(terminalAccessoryPreferencesManager)

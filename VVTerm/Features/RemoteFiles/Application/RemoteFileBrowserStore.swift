@@ -4,9 +4,7 @@ import Combine
 import os.log
 
 @MainActor
-final class RemoteFileBrowserManager: ObservableObject {
-    static let shared = RemoteFileBrowserManager()
-
+final class RemoteFileBrowserStore: ObservableObject {
     enum ToolbarCommandAction: Sendable {
         case upload(destinationPath: String)
         case createFolder(destinationPath: String)
@@ -153,7 +151,7 @@ final class RemoteFileBrowserManager: ObservableObject {
     static let previewConfirmationBytes = 1 * 1_024 * 1_024
     private static let maxMediaPreviewBytes = 64 * 1_024 * 1_024
 
-    private init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         loadPersistedStates()
     }
