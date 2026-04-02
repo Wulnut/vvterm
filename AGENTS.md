@@ -44,6 +44,9 @@ VVTerm/
 │   │   ├── Application/
 │   │   ├── Infrastructure/
 │   │   └── UI/
+│   ├── Settings/
+│   │   ├── Application/
+│   │   └── UI/
 │   ├── Store/
 │   │   ├── Domain/
 │   │   ├── Application/
@@ -95,6 +98,7 @@ Current migration status:
 - `Features/Servers` is migrated for server/workspace domain models, server management, and server/workspace UI flows.
 - `Features/Stats` is migrated for server metrics collection and presentation.
 - `Features/Security` is migrated for app lock and biometric authentication flows.
+- `Features/Settings` is migrated for settings window presentation and settings screens.
 - `Features/Store` is migrated for Pro entitlements, purchases, and upgrade surfaces.
 - `Features/TerminalThemes` is migrated for theme models, validation, storage paths, parsing, and theme management.
 - `Features/TerminalAccessories` is migrated for keyboard accessory models, preferences, settings UI, and accessory validation flows.
