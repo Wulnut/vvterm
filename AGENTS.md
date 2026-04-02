@@ -52,6 +52,8 @@ VVTerm/
 │   │   ├── Domain/
 │   │   ├── Application/
 │   │   └── UI/
+│   ├── Support/
+│   │   └── UI/
 │   ├── TerminalThemes/
 │   │   ├── Domain/
 │   │   ├── Application/
@@ -102,6 +104,7 @@ Current migration status:
 - `Features/Security` is migrated for app lock and biometric authentication flows.
 - `Features/Settings` is migrated for settings window presentation and settings screens.
 - `Features/Store` is migrated for Pro entitlements, purchases, and upgrade surfaces.
+- `Features/Support` is migrated for support/contact UI surfaces.
 - `Features/TerminalThemes` is migrated for theme models, validation, storage paths, parsing, and theme management.
 - `Features/TerminalAccessories` is migrated for keyboard accessory models, preferences, settings UI, and accessory validation flows.
 - `Features/TerminalPresets` is migrated for terminal preset models, persistence, and preset form UI.
