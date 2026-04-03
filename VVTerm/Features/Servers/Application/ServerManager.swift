@@ -113,6 +113,22 @@ final class ServerManager: ObservableObject {
         let fetchedServersByID = Dictionary(uniqueKeysWithValues: changes.servers.map { ($0.id, $0) })
         let fetchedWorkspacesByID = Dictionary(uniqueKeysWithValues: changes.workspaces.map { ($0.id, $0) })
 
+        removeResolvedPendingServerUpserts(in: snapshot, fetchedServersByID: fetchedServersByID)
+        removeResolvedPendingWorkspaceUpserts(in: snapshot, fetchedWorkspacesByID: fetchedWorkspacesByID)
+    }
+
+    private func pendingMutations(
+        in snapshot: [PendingCloudKitMutation],
+        entity: PendingCloudKitEntity,
+        operation: PendingCloudKitOperation
+    ) -> [PendingCloudKitMutation] {
+        snapshot.filter { $0.entity == entity && $0.operation == operation }
+    }
+
+    private func removeResolvedPendingServerUpserts(
+        in snapshot: [PendingCloudKitMutation],
+        fetchedServersByID: [UUID: Server]
+    ) {
         for mutation in pendingMutations(in: snapshot, entity: .server, operation: .upsert) {
             guard let pendingServer = mutation.server,
                   let fetchedServer = fetchedServersByID[pendingServer.id] else {
@@ -123,7 +139,12 @@ final class ServerManager: ObservableObject {
                 syncCoordinator.removePendingMutation(mutation.id)
             }
         }
+    }
 
+    private func removeResolvedPendingWorkspaceUpserts(
+        in snapshot: [PendingCloudKitMutation],
+        fetchedWorkspacesByID: [UUID: Workspace]
+    ) {
         for mutation in pendingMutations(in: snapshot, entity: .workspace, operation: .upsert) {
             guard let pendingWorkspace = mutation.workspace,
                   let fetchedWorkspace = fetchedWorkspacesByID[pendingWorkspace.id] else {
@@ -134,14 +155,6 @@ final class ServerManager: ObservableObject {
                 syncCoordinator.removePendingMutation(mutation.id)
             }
         }
-    }
-
-    private func pendingMutations(
-        in snapshot: [PendingCloudKitMutation],
-        entity: PendingCloudKitEntity,
-        operation: PendingCloudKitOperation
-    ) -> [PendingCloudKitMutation] {
-        snapshot.filter { $0.entity == entity && $0.operation == operation }
     }
 
     private func applyPendingServerUpsert(_ server: Server) {
