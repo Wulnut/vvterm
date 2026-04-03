@@ -86,7 +86,11 @@ final class ServerManager: ObservableObject {
 
     private func applyPendingSyncOverlay() {
         let snapshot = syncCoordinator.snapshot()
+        applyPendingUpsertOverlay(in: snapshot)
+        applyPendingDeleteOverlay(in: snapshot)
+    }
 
+    private func applyPendingUpsertOverlay(in snapshot: [PendingCloudKitMutation]) {
         for mutation in pendingMutations(in: snapshot, entity: .workspace, operation: .upsert) {
             if let workspace = mutation.workspace {
                 applyPendingWorkspaceUpsert(workspace)
@@ -98,7 +102,9 @@ final class ServerManager: ObservableObject {
                 applyPendingServerUpsert(server)
             }
         }
+    }
 
+    private func applyPendingDeleteOverlay(in snapshot: [PendingCloudKitMutation]) {
         for mutation in pendingMutations(in: snapshot, entity: .server, operation: .delete) {
             applyPendingServerDelete(mutation.entityKey)
         }
