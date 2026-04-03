@@ -32,6 +32,9 @@ extension RemoteFileBrowserScreen {
                         .listRowBackground(Color.clear)
                     }
                 }
+                .refreshable {
+                    await browser.refresh(server: server)
+                }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
@@ -57,9 +60,6 @@ extension RemoteFileBrowserScreen {
             }
         }
         .background(Color.clear)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            iOSBottomPanel(snapshot)
-        }
         .navigationDestination(isPresented: iOSPreviewBinding) {
             RemoteFileInspectorView(
                 selectedEntry: snapshot.selectedEntry,
@@ -114,6 +114,65 @@ extension RemoteFileBrowserScreen {
                             Image(systemName: "ellipsis.circle")
                         }
                     }
+                }
+            }
+        }
+        .toolbar {
+            if #available(iOS 26, *) {
+                ToolbarItem(placement: .bottomBar) {
+                    iOSBottomToolbarButton(
+                        systemName: "arrow.turn.up.left",
+                        isDisabled: snapshot.currentPath == "/"
+                    ) {
+                        Task { await browser.goUp(server: server) }
+                    }
+                }
+
+                ToolbarSpacer(.fixed)
+
+                ToolbarItem(placement: .bottomBar) {
+                    iOSBottomToolbarButton(systemName: "arrow.up.doc") {
+                        beginUpload(to: snapshot.currentPath)
+                    }
+                }
+
+                ToolbarSpacer(.fixed)
+
+                ToolbarItem(placement: .bottomBar) {
+                    iOSBottomToolbarButton(systemName: "folder.badge.plus") {
+                        beginCreateFolder(in: snapshot.currentPath)
+                    }
+                }
+
+                ToolbarSpacer(.fixed)
+
+                ToolbarItem(placement: .bottomBar) {
+                    iOSBrowserMenu(snapshot)
+                }
+            } else {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    iOSBottomToolbarButton(
+                        systemName: "arrow.turn.up.left",
+                        isDisabled: snapshot.currentPath == "/"
+                    ) {
+                        Task { await browser.goUp(server: server) }
+                    }
+                }
+
+                ToolbarItemGroup(placement: .bottomBar) {
+                    iOSBottomToolbarButton(systemName: "arrow.up.doc") {
+                        beginUpload(to: snapshot.currentPath)
+                    }
+                }
+
+                ToolbarItemGroup(placement: .bottomBar) {
+                    iOSBottomToolbarButton(systemName: "folder.badge.plus") {
+                        beginCreateFolder(in: snapshot.currentPath)
+                    }
+                }
+
+                ToolbarItemGroup(placement: .bottomBar) {
+                    iOSBrowserMenu(snapshot)
                 }
             }
         }
@@ -191,239 +250,54 @@ extension RemoteFileBrowserScreen {
         return nil
     }
 
-    func iOSBottomPanel(_ snapshot: Snapshot) -> some View {
-        Group {
-            if #available(iOS 26, *) {
-                GlassEffectContainer(spacing: 10) {
-                    iOSLiquidGlassBottomPanel(snapshot)
-                }
-            } else {
-                iOSFallbackBottomPanel(snapshot)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
-        .background(Color.clear)
-    }
-
-    @available(iOS 26, *)
-    func iOSLiquidGlassBottomPanel(_ snapshot: Snapshot) -> some View {
-        HStack(spacing: 10) {
+    func iOSBrowserMenu(_ snapshot: Snapshot) -> some View {
+        Menu {
             Button {
-                Task { await browser.goUp(server: server) }
+                Clipboard.copy(snapshot.currentPath)
             } label: {
-                Image(systemName: "arrow.turn.up.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 46, height: 46)
-                    .foregroundStyle(.primary)
-                    .glassEffect(.regular.interactive(), in: Circle())
+                Label(String(localized: "Copy Path"), systemImage: "document.on.document")
             }
-            .buttonStyle(.plain)
-            .disabled(snapshot.currentPath == "/")
 
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            Divider()
 
-                TextField(String(localized: "Search Files"), text: $iOSSearchQuery)
-                    .font(.body)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($iOSSearchFieldFocused)
-                    .onSubmit {
-                        iOSSearchFieldFocused = false
-                    }
-
-                if !iOSSearchQuery.isEmpty {
-                    Button {
-                        iOSSearchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if iOSSearchFieldFocused {
-                    Button {
-                        iOSSearchFieldFocused = false
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if snapshot.isLoadingDirectory {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Button {
-                        Task { await browser.refresh(server: server) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 46)
-            .frame(maxWidth: .infinity)
-            .contentShape(Capsule())
-            .onTapGesture {
-                iOSSearchFieldFocused = true
-            }
-            .glassEffect(.regular.interactive(), in: Capsule())
-
-            Menu {
-                browserActionMenu(currentPath: snapshot.currentPath)
-
-                Divider()
-
-                Toggle(
-                    String(localized: "Show Hidden Files"),
-                    isOn: Binding(
-                        get: { browser.showHiddenFiles(for: server.id) },
-                        set: { browser.setShowHiddenFiles($0, serverId: server.id) }
-                    )
+            Toggle(
+                String(localized: "Show Hidden Files"),
+                isOn: Binding(
+                    get: { browser.showHiddenFiles(for: server.id) },
+                    set: { browser.setShowHiddenFiles($0, serverId: server.id) }
                 )
+            )
 
-                Picker(
-                    String(localized: "Sort"),
-                    selection: Binding(
-                        get: { browser.sort(for: server.id) },
-                        set: { browser.updateSort($0, serverId: server.id) }
-                    )
-                ) {
-                    ForEach(RemoteFileSort.allCases) { option in
-                        Text(option.displayName).tag(option)
-                    }
+            Picker(
+                String(localized: "Sort"),
+                selection: Binding(
+                    get: { browser.sort(for: server.id) },
+                    set: { browser.updateSort($0, serverId: server.id) }
+                )
+            ) {
+                ForEach(RemoteFileSort.allCases) { option in
+                    Text(option.displayName).tag(option)
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 46, height: 46)
-                    .foregroundStyle(.primary)
-                    .glassEffect(.regular.interactive(), in: Circle())
             }
-            .buttonStyle(.plain)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 20, weight: .semibold))
+                .frame(width: 36, height: 36)
         }
     }
 
-    func iOSFallbackBottomPanel(_ snapshot: Snapshot) -> some View {
-        HStack(spacing: 10) {
-            Button {
-                Task { await browser.goUp(server: server) }
-            } label: {
-                Image(systemName: "arrow.turn.up.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 46, height: 46)
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(.plain)
-            .adaptiveGlassCircle()
-            .disabled(snapshot.currentPath == "/")
-
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                TextField(String(localized: "Search Files"), text: $iOSSearchQuery)
-                    .font(.body)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($iOSSearchFieldFocused)
-                    .onSubmit {
-                        iOSSearchFieldFocused = false
-                    }
-
-                if !iOSSearchQuery.isEmpty {
-                    Button {
-                        iOSSearchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if iOSSearchFieldFocused {
-                    Button {
-                        iOSSearchFieldFocused = false
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if snapshot.isLoadingDirectory {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Button {
-                        Task { await browser.refresh(server: server) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 46)
-            .frame(maxWidth: .infinity)
-            .contentShape(Capsule())
-            .onTapGesture {
-                iOSSearchFieldFocused = true
-            }
-            .adaptiveGlass()
-
-            Menu {
-                browserActionMenu(currentPath: snapshot.currentPath)
-
-                Divider()
-
-                Toggle(
-                    String(localized: "Show Hidden Files"),
-                    isOn: Binding(
-                        get: { browser.showHiddenFiles(for: server.id) },
-                        set: { browser.setShowHiddenFiles($0, serverId: server.id) }
-                    )
-                )
-
-                Picker(
-                    String(localized: "Sort"),
-                    selection: Binding(
-                        get: { browser.sort(for: server.id) },
-                        set: { browser.updateSort($0, serverId: server.id) }
-                    )
-                ) {
-                    ForEach(RemoteFileSort.allCases) { option in
-                        Text(option.displayName).tag(option)
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 46, height: 46)
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(.plain)
-            .adaptiveGlassCircle()
+    func iOSBottomToolbarButton(
+        systemName: String,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 36, height: 36)
         }
+        .disabled(isDisabled)
     }
+
 }
 #endif

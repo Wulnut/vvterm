@@ -1244,6 +1244,7 @@ struct iOSTerminalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .id(session.id)
         .onAppear {
             prepareTerminal(session: session, viewSelection: effectiveViewSelection, terminalAlreadyExists: terminalAlreadyExists)
             if effectiveViewSelection == "terminal" {
@@ -1293,6 +1294,9 @@ struct iOSTerminalView: View {
                     sessionManager.selectedViewByServer[server.id] = viewTabConfig.isTabVisible(ConnectionViewTab.terminal.id)
                         ? ConnectionViewTab.terminal.id
                         : viewTabConfig.effectiveDefaultTab()
+                    currentServerId = server.id
+                    shouldShowTerminalBySession[session.id] = true
+                    reconnectTokenBySession[session.id] = session.id
                     sessionManager.selectedSessionId = session.id
                 }
             } catch {

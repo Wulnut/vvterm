@@ -46,8 +46,6 @@ struct RemoteFileBrowserScreen: View {
     #if os(macOS)
     @State var macOSSelectedPaths: Set<String> = []
     @State var macOSTitlebarHeight: CGFloat = 0
-    #else
-    @FocusState var iOSSearchFieldFocused: Bool
     #endif
 
     struct Snapshot {
@@ -299,6 +297,9 @@ struct RemoteFileBrowserScreen: View {
         ) { result in
             handleDownloadExportCompletion(result)
         }
+        #if os(iOS)
+        .searchable(text: $iOSSearchQuery, prompt: String(localized: "Search Files"))
+        #endif
         #if os(macOS)
         .overlay(alignment: .topTrailing) {
             if let shareItem {
