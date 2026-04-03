@@ -38,14 +38,12 @@ final class ServerManager: ObservableObject {
     // MARK: - Local Storage
 
     private func loadLocalData() {
-        if let data = UserDefaults.standard.data(forKey: serversKey),
-           let decoded = try? JSONDecoder().decode([Server].self, from: data) {
+        if let decoded = loadStoredServers() {
             servers = decoded
             logger.info("Loaded \(decoded.count) servers from local storage")
         }
 
-        if let data = UserDefaults.standard.data(forKey: workspacesKey),
-           let decoded = try? JSONDecoder().decode([Workspace].self, from: data) {
+        if let decoded = loadStoredWorkspaces() {
             workspaces = decoded
             logger.info("Loaded \(decoded.count) workspaces from local storage")
         }
@@ -58,12 +56,36 @@ final class ServerManager: ObservableObject {
     }
 
     private func saveLocalData() {
-        if let data = try? JSONEncoder().encode(servers) {
-            UserDefaults.standard.set(data, forKey: serversKey)
+        storeServers(servers)
+        storeWorkspaces(workspaces)
+    }
+
+    private func loadStoredServers() -> [Server]? {
+        guard let data = UserDefaults.standard.data(forKey: serversKey) else {
+            return nil
         }
-        if let data = try? JSONEncoder().encode(workspaces) {
-            UserDefaults.standard.set(data, forKey: workspacesKey)
+        return try? JSONDecoder().decode([Server].self, from: data)
+    }
+
+    private func loadStoredWorkspaces() -> [Workspace]? {
+        guard let data = UserDefaults.standard.data(forKey: workspacesKey) else {
+            return nil
         }
+        return try? JSONDecoder().decode([Workspace].self, from: data)
+    }
+
+    private func storeServers(_ servers: [Server]) {
+        guard let data = try? JSONEncoder().encode(servers) else {
+            return
+        }
+        UserDefaults.standard.set(data, forKey: serversKey)
+    }
+
+    private func storeWorkspaces(_ workspaces: [Workspace]) {
+        guard let data = try? JSONEncoder().encode(workspaces) else {
+            return
+        }
+        UserDefaults.standard.set(data, forKey: workspacesKey)
     }
 
     // MARK: - Pending CloudKit Sync
