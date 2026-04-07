@@ -107,8 +107,8 @@ extension RemoteFileBrowserStore {
     }
 
     func deleteDirectory(at remotePath: String, serverId: UUID) async throws {
-        try await performMutation(serverId: serverId) { service in
-            try await service.deleteDirectory(at: remotePath)
+        try await performMutation(serverId: serverId) { [self] service in
+            try await deleteDirectoryRecursively(at: remotePath, using: service)
         }
     }
 
@@ -352,6 +352,27 @@ extension RemoteFileBrowserStore {
             try await operation(service)
         }
         await refresh(serverId: serverId)
+    }
+
+    func deleteDirectoryRecursively(
+        at remotePath: String,
+        using service: any RemoteFileService
+    ) async throws {
+        let normalizedPath = RemoteFilePath.normalize(remotePath)
+        let entries = try await service.listDirectory(at: normalizedPath, maxEntries: nil)
+
+        for entry in entries {
+            try Task.checkCancellation()
+
+            switch entry.type {
+            case .directory:
+                try await deleteDirectoryRecursively(at: entry.path, using: service)
+            case .file, .symlink, .other:
+                try await service.deleteFile(at: entry.path)
+            }
+        }
+
+        try await service.deleteDirectory(at: normalizedPath)
     }
 
     func loadLocalFileData(from url: URL) async throws -> Data {
