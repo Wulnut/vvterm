@@ -21,6 +21,12 @@ class GhosttyIMEHandler {
     /// Track marked text for IME composition
     private(set) var markedText: String = ""
 
+    /// Selection within the current marked text, as reported by the IME.
+    private var markedSelectedRange: NSRange = NSRange(location: 0, length: 0)
+
+    /// Last visible preedit string sent to Ghostty, used to avoid redundant updates.
+    private var renderedPreeditText: String?
+
     /// Attributes for displaying marked text
     private let markedTextAttributes: [NSAttributedString.Key: Any] = [
         .underlineStyle: NSUnderlineStyle.single.rawValue,
@@ -45,6 +51,8 @@ class GhosttyIMEHandler {
     /// Update surface reference
     func updateSurface(_ surface: Ghostty.Surface?) {
         self.surface = surface
+        renderedPreeditText = nil
+        syncPreedit(markedText)
     }
 
     /// Check if currently composing marked text
@@ -67,8 +75,10 @@ class GhosttyIMEHandler {
     func clearMarkedText() {
         if !markedText.isEmpty {
             markedText = ""
+            markedSelectedRange = NSRange(location: 0, length: 0)
             view?.needsDisplay = true
         }
+        syncPreedit(nil)
     }
 
     // MARK: - NSTextInputClient Methods
@@ -93,12 +103,15 @@ class GhosttyIMEHandler {
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
         guard let text = anyToString(string) else { return }
 
-        // Update marked text state
+        // Update marked text state before refreshing inline preedit.
         markedText = text
+        markedSelectedRange = selectedRange
 
         // Tell system we've handled the marked text
         view?.inputContext?.invalidateCharacterCoordinates()
         view?.needsDisplay = true
+
+        syncPreedit(markedText)
 
         Self.logger.debug("IME marked text: \(text)")
     }
@@ -110,8 +123,13 @@ class GhosttyIMEHandler {
     }
 
     func selectedRange() -> NSRange {
-        // Terminals don't have text selection in the traditional sense for IME
-        return NSRange(location: NSNotFound, length: 0)
+        if !markedText.isEmpty {
+            return NSRange(
+                location: markedSelectedRange.location,
+                length: markedSelectedRange.length
+            )
+        }
+        return NSRange(location: 0, length: 0)
     }
 
     func markedRange() -> NSRange {
@@ -181,6 +199,54 @@ class GhosttyIMEHandler {
 
     func characterIndex(for point: NSPoint) -> Int {
         return NSNotFound
+    }
+
+    // MARK: - Inline Preedit Rendering
+
+    private func syncPreedit(_ text: String?) {
+        let visibleText: String?
+        if let text, !text.isEmpty {
+            let normalized = text.precomposedStringWithCanonicalMapping
+            visibleText = TerminalVisiblePreeditPolicy.shouldDisplay(
+                normalized,
+                inputModePrimaryLanguage: currentInputLanguage
+            ) ? normalized : nil
+        } else {
+            visibleText = nil
+        }
+
+        guard visibleText != renderedPreeditText else { return }
+        renderedPreeditText = visibleText
+
+        guard let cSurface = surface?.unsafeCValue else { return }
+
+        if let visibleText, !visibleText.isEmpty {
+            let len = visibleText.utf8CString.count
+            guard len > 0 else {
+                ghostty_surface_preedit(cSurface, nil, 0)
+                view?.needsDisplay = true
+                return
+            }
+            visibleText.withCString { ptr in
+                ghostty_surface_preedit(cSurface, ptr, UInt(len - 1))
+            }
+        } else {
+            ghostty_surface_preedit(cSurface, nil, 0)
+        }
+
+        view?.needsDisplay = true
+    }
+
+    private var currentInputLanguage: String? {
+        guard let sourceID = view?.inputContext?.selectedKeyboardInputSource?.lowercased() else {
+            return nil
+        }
+        if sourceID.contains("korean") || sourceID.contains("hangul") { return "ko" }
+        if sourceID.contains("chinese") || sourceID.contains("scim") || sourceID.contains("tcim")
+            || sourceID.contains("pinyin") || sourceID.contains("wubi")
+            || sourceID.contains("cangjie") || sourceID.contains("zhuyin") { return "zh" }
+        if sourceID.contains("japanese") || sourceID.contains("kotoeri") { return "ja" }
+        return nil
     }
 
     // MARK: - Helper
