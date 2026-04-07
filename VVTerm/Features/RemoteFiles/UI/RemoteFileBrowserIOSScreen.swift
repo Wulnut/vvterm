@@ -148,7 +148,7 @@ extension RemoteFileBrowserScreen {
 
                 ToolbarItem(placement: .bottomBar) {
                     iOSBottomToolbarButton(systemName: "document.on.document") {
-                        Clipboard.copy(snapshot.currentPath)
+                        copyPathToClipboard(snapshot.currentPath)
                     }
                 }
 
@@ -181,7 +181,7 @@ extension RemoteFileBrowserScreen {
 
                 ToolbarItemGroup(placement: .bottomBar) {
                     iOSBottomToolbarButton(systemName: "document.on.document") {
-                        Clipboard.copy(snapshot.currentPath)
+                        copyPathToClipboard(snapshot.currentPath)
                     }
                 }
 

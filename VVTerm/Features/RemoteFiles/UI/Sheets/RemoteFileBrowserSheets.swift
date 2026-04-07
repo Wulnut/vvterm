@@ -1,5 +1,21 @@
 import SwiftUI
 
+private struct RemoteFileSheetActionLabel: View {
+    let title: String
+    let isSubmitting: Bool
+
+    var body: some View {
+        Text(title)
+            .opacity(isSubmitting ? 0 : 1)
+            .overlay {
+                if isSubmitting {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+    }
+}
+
 struct RemoteFileRenameSheet: View {
     let entry: RemoteFileEntry
     @Binding var proposedName: String
@@ -21,8 +37,13 @@ struct RemoteFileRenameSheet: View {
                     }
 
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(String(localized: "Rename")) {
+                        Button {
                             onRename()
+                        } label: {
+                            RemoteFileSheetActionLabel(
+                                title: String(localized: "Rename"),
+                                isSubmitting: isSubmitting
+                            )
                         }
                         .disabled(trimmedProposedName.isEmpty || isSubmitting)
                     }
@@ -43,8 +64,13 @@ struct RemoteFileRenameSheet: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(String(localized: "Rename")) {
+                Button {
                     onRename()
+                } label: {
+                    RemoteFileSheetActionLabel(
+                        title: String(localized: "Rename"),
+                        isSubmitting: isSubmitting
+                    )
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(trimmedProposedName.isEmpty || isSubmitting)
@@ -75,12 +101,6 @@ struct RemoteFileRenameSheet: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     #endif
-            }
-
-            if isSubmitting {
-                Section {
-                    ProgressView(String(localized: "Renaming…"))
-                }
             }
         }
         #if os(iOS)
@@ -115,8 +135,13 @@ struct RemoteFileCreateFolderSheet: View {
                     }
 
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(String(localized: "Create")) {
+                        Button {
                             onCreate()
+                        } label: {
+                            RemoteFileSheetActionLabel(
+                                title: String(localized: "Create"),
+                                isSubmitting: isSubmitting
+                            )
                         }
                         .disabled(trimmedFolderName.isEmpty || isSubmitting)
                     }
@@ -137,8 +162,13 @@ struct RemoteFileCreateFolderSheet: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(String(localized: "Create")) {
+                Button {
                     onCreate()
+                } label: {
+                    RemoteFileSheetActionLabel(
+                        title: String(localized: "Create"),
+                        isSubmitting: isSubmitting
+                    )
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(trimmedFolderName.isEmpty || isSubmitting)
@@ -165,12 +195,6 @@ struct RemoteFileCreateFolderSheet: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     #endif
-            }
-
-            if isSubmitting {
-                Section {
-                    ProgressView(String(localized: "Creating…"))
-                }
             }
         }
         #if os(iOS)
@@ -229,8 +253,13 @@ struct RemoteFileMoveSheet: View {
                         }
 
                         ToolbarItem(placement: .confirmationAction) {
-                            Button(String(localized: "Move")) {
+                            Button {
                                 onMove()
+                            } label: {
+                                RemoteFileSheetActionLabel(
+                                    title: String(localized: "Move"),
+                                    isSubmitting: isSubmitting
+                                )
                             }
                             .disabled(destinationDirectory.isEmpty || isSubmitting)
                         }
@@ -251,8 +280,13 @@ struct RemoteFileMoveSheet: View {
                     }
                     .keyboardShortcut(.cancelAction)
 
-                    Button(String(localized: "Move")) {
+                    Button {
                         onMove()
+                    } label: {
+                        RemoteFileSheetActionLabel(
+                            title: String(localized: "Move"),
+                            isSubmitting: isSubmitting
+                        )
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(destinationDirectory.isEmpty || isSubmitting)
@@ -350,12 +384,6 @@ struct RemoteFileMoveSheet: View {
                             )
                         }
                     }
-                }
-            }
-
-            if isSubmitting {
-                Section {
-                    ProgressView(String(localized: "Moving…"))
                 }
             }
         }
@@ -557,8 +585,13 @@ struct RemoteFilePermissionEditorSheet: View {
                     }
 
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(String(localized: "Apply")) {
+                        Button {
                             onApply()
+                        } label: {
+                            RemoteFileSheetActionLabel(
+                                title: String(localized: "Apply"),
+                                isSubmitting: isSubmitting
+                            )
                         }
                         .disabled(!permissionsChanged || isSubmitting)
                     }
@@ -578,8 +611,13 @@ struct RemoteFilePermissionEditorSheet: View {
 
                 Spacer()
 
-                Button(String(localized: "Apply")) {
+                Button {
                     onApply()
+                } label: {
+                    RemoteFileSheetActionLabel(
+                        title: String(localized: "Apply"),
+                        isSubmitting: isSubmitting
+                    )
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
@@ -611,20 +649,8 @@ struct RemoteFilePermissionEditorSheet: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .disabled(isSubmitting)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .overlay {
-            if isSubmitting {
-                ZStack {
-                    Color.black.opacity(0.08)
-                        .ignoresSafeArea()
-
-                    ProgressView(String(localized: "Applying Permissions"))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-            }
-        }
     }
 
     private var header: some View {
