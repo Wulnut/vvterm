@@ -796,14 +796,6 @@ struct iOSTerminalView: View {
         isConnecting || selectedServer != nil || !serverSessions.isEmpty
     }
 
-    private var showsTerminalChrome: Bool {
-        selectedView == "terminal" && !effectiveZenModeEnabled
-    }
-
-    private var showsTerminalNewTabButton: Bool {
-        selectedView == "terminal"
-    }
-
     private var effectiveZenModeEnabled: Bool {
         isZenModeEnabled && canUseZenMode
     }
@@ -975,7 +967,9 @@ struct iOSTerminalView: View {
         mainContent
             .background(backgroundView)
             .overlay(alignment: .top) {
-                NavBarBackdrop(color: terminalBackgroundColor, isVisible: showsTerminalChrome)
+                if selectedView == "terminal" && !effectiveZenModeEnabled {
+                    NavBarBackdrop(color: terminalBackgroundColor)
+                }
             }
             .overlay(alignment: .topTrailing) {
                 if effectiveZenModeEnabled {
@@ -1131,35 +1125,24 @@ struct iOSTerminalView: View {
         }
 
         ToolbarItem(placement: .principal) {
-            if let serverId = currentServerId ?? selectedSession?.serverId {
+            if let serverId = currentServerId ?? selectedSession?.serverId ?? selectedServer?.id ?? connectingServer?.id {
                 iOSNativeSegmentedPicker(
                     selection: selectedViewBinding(for: serverId),
                     tabs: viewTabConfig.currentVisibleTabs
                 )
                 .fixedSize()
-                .transaction { transaction in
-                    transaction.animation = nil
+            }
+        }
+
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            if selectedView == "terminal" {
+                Button {
+                    openNewTab()
+                } label: {
+                    Image(systemName: "plus")
                 }
             }
-        }
 
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button {
-                openNewTab()
-            } label: {
-                Image(systemName: "plus")
-                    .frame(width: 17, height: 17)
-            }
-            .opacity(showsTerminalNewTabButton ? 1 : 0)
-            .disabled(!showsTerminalNewTabButton)
-            .allowsHitTesting(showsTerminalNewTabButton)
-            .accessibilityHidden(!showsTerminalNewTabButton)
-            .transaction { transaction in
-                transaction.animation = nil
-            }
-        }
-
-        ToolbarItem(placement: .navigationBarTrailing) {
             Menu {
                 Button {
                     showingSettings = true
@@ -1190,9 +1173,6 @@ struct iOSTerminalView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
-            }
-            .transaction { transaction in
-                transaction.animation = nil
             }
         }
     }
@@ -1551,26 +1531,25 @@ private struct iOSNativeSegmentedPicker: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UISegmentedControl, context: Context) {
+        context.coordinator.selection = $selection
         context.coordinator.tabs = tabs
-        if uiView.numberOfSegments != tabs.count {
+        if context.coordinator.renderedTabs != tabs {
             configure(uiView, tabs: tabs)
-            uiView.addTarget(context.coordinator, action: #selector(Coordinator.valueChanged(_:)), for: .valueChanged)
-        } else {
-            for (index, tab) in tabs.enumerated() {
-                uiView.setImage(UIImage(systemName: tab.icon), forSegmentAt: index)
-            }
+            context.coordinator.renderedTabs = tabs
         }
 
         let resolvedSelection = tabs.contains(where: { $0.id == selection }) ? selection : tabs.first?.id ?? selection
         if resolvedSelection != selection {
-            selection = resolvedSelection
+            DispatchQueue.main.async {
+                selection = resolvedSelection
+            }
         }
 
         let targetIndex = selectedIndex
         guard uiView.selectedSegmentIndex != targetIndex else { return }
         UIView.performWithoutAnimation {
             uiView.selectedSegmentIndex = targetIndex
-            uiView.layoutIfNeeded()
+            uiView.setNeedsLayout()
         }
     }
 
@@ -1596,18 +1575,24 @@ private struct iOSNativeSegmentedPicker: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject {
-        private var selection: Binding<String>
+        var selection: Binding<String>
         var tabs: [ConnectionViewTab]
+        var renderedTabs: [ConnectionViewTab]
 
         init(selection: Binding<String>, tabs: [ConnectionViewTab]) {
             self.selection = selection
             self.tabs = tabs
+            self.renderedTabs = tabs
         }
 
         @objc func valueChanged(_ sender: UISegmentedControl) {
             let index = sender.selectedSegmentIndex
             guard tabs.indices.contains(index) else { return }
-            selection.wrappedValue = tabs[index].id
+            let selectedTabID = tabs[index].id
+            guard selection.wrappedValue != selectedTabID else { return }
+            DispatchQueue.main.async { [selection] in
+                selection.wrappedValue = selectedTabID
+            }
         }
     }
 }
@@ -1615,7 +1600,6 @@ private struct iOSNativeSegmentedPicker: UIViewRepresentable {
 
 private struct NavBarBackdrop: View {
     let color: Color
-    var isVisible = true
 
     var body: some View {
         GeometryReader { proxy in
@@ -1625,8 +1609,6 @@ private struct NavBarBackdrop: View {
                 .frame(maxWidth: .infinity, alignment: .top)
                 .ignoresSafeArea()
         }
-        .opacity(isVisible ? 1 : 0)
-        .animation(nil, value: isVisible)
         .allowsHitTesting(false)
     }
 }

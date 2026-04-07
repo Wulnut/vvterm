@@ -465,6 +465,21 @@ struct RemoteFileBrowserScreen: View {
     }
 
     @MainActor
+    func copyPathToClipboard(_ path: String) {
+        Clipboard.copy(path)
+        noticeHost.show(
+            NoticeItem(
+                id: UUID().uuidString,
+                lane: .topBanner,
+                level: .success,
+                leading: .icon("checkmark.circle.fill"),
+                message: String(localized: "Path copied to clipboard."),
+                lifetime: .autoDismiss(.seconds(1.5))
+            )
+        )
+    }
+
+    @MainActor
     func beginTransferStatus(
         id: UUID,
         title: String,
@@ -750,7 +765,7 @@ struct RemoteFileBrowserScreen: View {
         Divider()
 
         Button {
-            Clipboard.copy(currentPath)
+            copyPathToClipboard(currentPath)
         } label: {
             Label(String(localized: "Copy Path"), systemImage: "document.on.document")
         }
@@ -889,7 +904,7 @@ struct RemoteFileBrowserScreen: View {
         }
 
         Button {
-            Clipboard.copy(entry.path)
+            copyPathToClipboard(entry.path)
         } label: {
             Label(String(localized: "Copy Path"), systemImage: "document.on.document")
         }

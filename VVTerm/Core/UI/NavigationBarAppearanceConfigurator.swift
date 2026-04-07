@@ -33,12 +33,27 @@ struct NavigationBarAppearanceConfigurator: UIViewControllerRepresentable {
 }
 
 final class AppearanceController: UIViewController {
+    private struct AppearanceConfig: Equatable {
+        let backgroundColor: UIColor
+        let isTranslucent: Bool
+        let shadowColor: UIColor?
+
+        static func == (lhs: AppearanceConfig, rhs: AppearanceConfig) -> Bool {
+            lhs.isTranslucent == rhs.isTranslucent &&
+            lhs.backgroundColor.isEqual(rhs.backgroundColor) &&
+            ((lhs.shadowColor == nil && rhs.shadowColor == nil) ||
+             (lhs.shadowColor?.isEqual(rhs.shadowColor) == true))
+        }
+    }
+
     private var backgroundColor: UIColor = .clear
     private var isTranslucent: Bool = false
     private var shadowColor: UIColor? = nil
     private var onDisappearBackgroundColor: UIColor? = nil
     private var onDisappearIsTranslucent: Bool? = nil
     private var onDisappearShadowColor: UIColor? = nil
+    private var lastAppliedConfig: AppearanceConfig?
+    private var lastAppliedNavigationBarID: ObjectIdentifier?
 
     func updateConfig(
         backgroundColor: UIColor,
@@ -77,7 +92,7 @@ final class AppearanceController: UIViewController {
             backgroundColor: backgroundColor,
             isTranslucent: isTranslucent,
             shadowColor: shadowColor,
-            disableAnimation: false
+            disableAnimation: true
         )
     }
 
@@ -88,6 +103,16 @@ final class AppearanceController: UIViewController {
         disableAnimation: Bool
     ) {
         guard let navBar = navigationController?.navigationBar else { return }
+        let config = AppearanceConfig(
+            backgroundColor: backgroundColor,
+            isTranslucent: isTranslucent,
+            shadowColor: shadowColor
+        )
+        let navigationBarID = ObjectIdentifier(navBar)
+
+        guard lastAppliedConfig != config || lastAppliedNavigationBarID != navigationBarID else {
+            return
+        }
 
         let applyBlock = {
             let appearance = UINavigationBarAppearance()
@@ -104,7 +129,7 @@ final class AppearanceController: UIViewController {
             navBar.compactAppearance = appearance
             navBar.isTranslucent = isTranslucent
             navBar.layer.removeAllAnimations()
-            navBar.layoutIfNeeded()
+            navBar.setNeedsLayout()
         }
 
         if disableAnimation {
@@ -114,6 +139,9 @@ final class AppearanceController: UIViewController {
         } else {
             applyBlock()
         }
+
+        lastAppliedConfig = config
+        lastAppliedNavigationBarID = navigationBarID
     }
 }
 
