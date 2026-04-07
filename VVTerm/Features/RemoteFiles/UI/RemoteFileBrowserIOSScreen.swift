@@ -147,7 +147,15 @@ extension RemoteFileBrowserScreen {
                 ToolbarSpacer(.fixed)
 
                 ToolbarItem(placement: .bottomBar) {
-                    iOSBrowserMenu(snapshot)
+                    iOSBottomToolbarButton(systemName: "document.on.document") {
+                        Clipboard.copy(snapshot.currentPath)
+                    }
+                }
+
+                ToolbarSpacer(.fixed)
+
+                ToolbarItem(placement: .bottomBar) {
+                    iOSBrowserMenu()
                 }
             } else {
                 ToolbarItemGroup(placement: .bottomBar) {
@@ -172,7 +180,13 @@ extension RemoteFileBrowserScreen {
                 }
 
                 ToolbarItemGroup(placement: .bottomBar) {
-                    iOSBrowserMenu(snapshot)
+                    iOSBottomToolbarButton(systemName: "document.on.document") {
+                        Clipboard.copy(snapshot.currentPath)
+                    }
+                }
+
+                ToolbarItemGroup(placement: .bottomBar) {
+                    iOSBrowserMenu()
                 }
             }
         }
@@ -258,16 +272,8 @@ extension RemoteFileBrowserScreen {
         return nil
     }
 
-    func iOSBrowserMenu(_ snapshot: Snapshot) -> some View {
+    func iOSBrowserMenu() -> some View {
         Menu {
-            Button {
-                Clipboard.copy(snapshot.currentPath)
-            } label: {
-                Label(String(localized: "Copy Path"), systemImage: "document.on.document")
-            }
-
-            Divider()
-
             Toggle(
                 String(localized: "Show Hidden Files"),
                 isOn: Binding(
@@ -288,7 +294,7 @@ extension RemoteFileBrowserScreen {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
+            Image(systemName: "line.3.horizontal.decrease.circle")
                 .font(.system(size: 20, weight: .semibold))
                 .frame(width: 36, height: 36)
         }
