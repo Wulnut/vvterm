@@ -10,10 +10,13 @@ It does not apply to source code in this repository.
 
 ## Governing Terms
 
-Use of App Store binaries is governed by:
+Use of App Store binaries is governed by VVTerm's custom App Store End User License Agreement,
+which is published in App Store Connect and mirrored at:
 
-1. Apple's Licensed Application End User License Agreement (including required minimum terms).
-2. VVTerm Terms of Use (EULA): https://vvterm.com/terms
+- https://vvterm.com/terms
+
+This custom EULA is intended to include Apple's required minimum terms for App Store-distributed
+applications.
 
 ## Source Code License
 
@@ -22,7 +25,7 @@ Source code in this repository is licensed under GNU General Public License v3.0
 ## Dual-License Summary
 
 - Repository source code: GPL-3.0.
-- Official App Store binaries: App Store EULA + VVTerm Terms of Use.
+- Official App Store binaries: VVTerm custom App Store EULA.
 
 ## Third-Party Software
 

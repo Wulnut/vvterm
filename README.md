@@ -204,7 +204,7 @@ Swift package dependencies currently resolved by the Xcode project:
 VVTerm uses a dual-license model:
 
 - Source code in this repository is licensed under GNU GPL v3.0 (`LICENSE`)
-- Official App Store binaries are distributed under the App Store EULA plus VVTerm terms (`LICENSE-APPSTORE.md`, https://vvterm.com/terms)
+- Official App Store binaries are distributed under VVTerm's custom App Store EULA (`LICENSE-APPSTORE.md`, https://vvterm.com/terms)
 
 If you obtain VVTerm from source and build it yourself, GPL-3.0 applies.
 If you obtain VVTerm via the App Store, App Store distribution terms apply to that binary.
