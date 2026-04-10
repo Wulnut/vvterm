@@ -1685,13 +1685,16 @@ class GhosttyTerminalView: UIView {
     }
 
     private func shouldRoutePressToSystemTextInput(_ key: UIKey) -> Bool {
-        let blockedModifiers: UIKeyModifierFlags = [.command, .control, .alternate]
-        guard key.modifierFlags.intersection(blockedModifiers).isEmpty else { return false }
-        if hasActiveIMEComposition { return true }
-        if fallbackHardwareKey(for: key) != nil { return false }
-        // Route only keys that can't be represented directly. Most hardware keys
-        // must go through ghostty_surface_key (not insertText) for TUI correctness.
-        return key.characters.isEmpty && key.charactersIgnoringModifiers.isEmpty
+        let keyProducesText = !(key.characters.isEmpty && key.charactersIgnoringModifiers.isEmpty)
+        return TerminalHardwareTextInputRoutingPolicy.shouldRoutePressToSystemTextInput(
+            hasControlModifier: key.modifierFlags.contains(.control),
+            hasAlternateModifier: key.modifierFlags.contains(.alternate),
+            hasCommandModifier: key.modifierFlags.contains(.command),
+            hasActiveIMEComposition: hasActiveIMEComposition,
+            isSystemTextInputToggleKey: key.keyCode == .keyboardCapsLock,
+            hasTerminalFallbackKey: fallbackHardwareKey(for: key) != nil,
+            keyProducesText: keyProducesText
+        )
     }
 
     fileprivate func processHardwarePressesBegan(_ presses: Set<UIPress>, event _: UIPressesEvent?) -> HardwarePressResult {
