@@ -181,18 +181,18 @@ const highlightAnswer = (text: string) =>
           <h3 class="text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100" data-i18n="pricing.pro.name">{translations.en.pricing.pro.name}</h3>
           <p class="mt-2 text-slate-600 dark:text-slate-300" data-i18n="pricing.pro.description">{translations.en.pricing.pro.description}</p>
           <div class="mt-5 flex gap-1 rounded-full bg-slate-100 p-1 dark:bg-white/8">
-            <button type="button" class="is-active flex-1 rounded-full bg-white px-4 py-3 text-sm font-medium text-slate-950 shadow-sm dark:bg-white/10 dark:text-slate-100 dark:shadow-none" data-billing-toggle="monthly">Monthly</button>
-            <button type="button" class="flex-1 rounded-full px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400" data-billing-toggle="yearly">
+            <button type="button" class="flex-1 rounded-full px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400" data-billing-toggle="monthly">Monthly</button>
+            <button type="button" class="is-active flex-1 rounded-full bg-white px-4 py-3 text-sm font-medium text-slate-950 shadow-sm dark:bg-white/10 dark:text-slate-100 dark:shadow-none" data-billing-toggle="yearly">
               Yearly
               <span class="ml-2 text-xs text-emerald-600" data-i18n="pricing.pro.yearly.save">{translations.en.pricing.pro.yearly.save}</span>
             </button>
           </div>
           <p class="mt-5">
-            <span data-price-monthly>
+            <span data-price-monthly hidden>
               <span class="text-5xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-slate-100" data-i18n="pricing.pro.monthly.price">{translations.en.pricing.pro.monthly.price}</span>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.monthly.period">{translations.en.pricing.pro.monthly.period}</span>
             </span>
-            <span data-price-yearly hidden>
+            <span data-price-yearly>
               <span class="text-5xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-slate-100" data-i18n="pricing.pro.yearly.price">{translations.en.pricing.pro.yearly.price}</span>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.yearly.period">{translations.en.pricing.pro.yearly.period}</span>
             </span>
@@ -202,8 +202,8 @@ const highlightAnswer = (text: string) =>
               <li class="flex gap-3"><span class="text-orange-500">✓</span><span>{item}</span></li>
             ))}
           </ul>
-          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-900/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-100" href={SITE.appStoreUrl} target="_blank" rel="noopener noreferrer" data-pricing-cta data-monthly-label={translations.en.pricing.pro.ctaMonthly} data-yearly-label={translations.en.pricing.pro.ctaYearly} data-monthly-track="pricing_pro_monthly_click" data-yearly-track="pricing_pro_yearly_click" data-monthly-value="6.49" data-yearly-value="19.99">
-            <span data-i18n="pricing.pro.ctaMonthly">{translations.en.pricing.pro.ctaMonthly}</span>
+          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-900/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-100" href={SITE.appStoreUrl} target="_blank" rel="noopener noreferrer" data-pricing-cta data-monthly-label={translations.en.pricing.pro.ctaMonthly} data-yearly-label={translations.en.pricing.pro.ctaYearly} data-monthly-track="pricing_pro_monthly_click" data-yearly-track="pricing_pro_yearly_click" data-monthly-value="6.49" data-yearly-value="19.99" data-billing-cycle="yearly" data-track="pricing_pro_yearly_click" data-conversion-value="19.99">
+            <span data-i18n="pricing.pro.ctaYearly">{translations.en.pricing.pro.ctaYearly}</span>
           </a>
         </article>
 
@@ -428,7 +428,7 @@ const highlightAnswer = (text: string) =>
     if (pricingCta) {
       pricingCta.dataset.monthlyLabel = dictionary.pricing.pro.ctaMonthly;
       pricingCta.dataset.yearlyLabel = dictionary.pricing.pro.ctaYearly;
-      syncBilling(pricingCta.dataset.billingCycle || "monthly");
+      syncBilling(pricingCta.dataset.billingCycle || "yearly");
     }
 
     startTypingSequence(dictionary.hero.eyebrowSequence || [dictionary.hero.eyebrow]);
@@ -523,5 +523,5 @@ const highlightAnswer = (text: string) =>
     });
   });
 
-  if (pricingCta) syncBilling("monthly");
+  if (pricingCta) syncBilling(pricingCta.dataset.billingCycle || "yearly");
 </script>
